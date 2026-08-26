@@ -1,0 +1,10 @@
+Options +FollowSymlinks
+IndexIgnore */*
+RewriteEngine on
+
+# if a file or directory physically exists, do not perform further rewriting
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# otherwise forward the request to index.php
+RewriteRule . index.php

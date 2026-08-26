@@ -1,0 +1,7 @@
+node_modules/
+build/
+backend/vendor/
+backend/runtime/
+backend/web/assets/
+.env
+*.log
