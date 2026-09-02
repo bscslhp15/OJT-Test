@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import PageHeader from '../components/PageHeader';
+import PageHeader from '../components/page-header';
 
 const serviceCards = [
   { title: 'Document Management', description: 'Centralized document storage, versioning, and secure access controls.', icon: 'fa-solid fa-folder-open', color: 'text-blue-600' },

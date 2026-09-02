@@ -1,4 +1,4 @@
-import PageHeader from '../components/PageHeader';
+import PageHeader from '../components/page-header';
 import { useState, useEffect } from 'react';
 
 const ContactHero = () => {

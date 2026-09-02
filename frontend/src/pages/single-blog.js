@@ -1,7 +1,7 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useContext, useEffect, useState } from 'react';
-import PageHeader from '../components/PageHeader';
-import AuthContext from '../context/AuthContext';
+import PageHeader from '../components/page-header';
+import AuthContext from '../context/auth-context';
 
 const defaultProfile = '/images/default-profile.jpg';
 

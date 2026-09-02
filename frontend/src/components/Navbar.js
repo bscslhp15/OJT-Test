@@ -1,7 +1,7 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useState, useContext, useRef, useEffect } from 'react';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
-import AuthContext from '../context/AuthContext';
+import AuthContext from '../context/auth-context';
 
 const navItems = [
   { label: 'Home', to: '/' },

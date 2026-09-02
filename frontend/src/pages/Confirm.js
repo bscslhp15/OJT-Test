@@ -1,8 +1,8 @@
 import { useEffect, useState, useContext } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import PageHeader from '../components/PageHeader';
+import PageHeader from '../components/page-header';
 import { confirmAccount, resendConfirmationEmail } from '../services/api';
-import AuthContext from '../context/AuthContext';
+import AuthContext from '../context/auth-context';
 
 const Confirm = () => {
   const { token } = useParams();

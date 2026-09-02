@@ -5,7 +5,7 @@ git remote add origin https://github.com/bscslhp15/OJT-Test.git
 git push -u origin main
 
 
-(ang git status ang magpapakita ng lahat ng modified, bagong file, at deleted file.)
+(ung git status ung magpapakita lahat ng modified bagong file at deleted file)
 cd "C:\xampp\htdocs\THESIS\OJT-Test"
 
 git status
@@ -14,3 +14,6 @@ git add .
 git diff --cached --stat
 git commit -m "Update system"
 git push
+
+
+git clone https://github.com/bscslhp15/OJT-Test.git

@@ -1,0 +1,66 @@
+ .vscode/GUIDE.MD                               |   5 [32m+[m[31m-[m
+ .vscode/git-guide.MD                           |   7 [32m+[m[31m-[m
+ frontend/images/gallery - Copy-cropped (1).png | Bin [31m155440[m -> [32m0[m bytes
+ frontend/images/gallery - Copy-cropped (2).png | Bin [31m57917[m -> [32m0[m bytes
+ frontend/images/gallery - Copy-cropped (3).png | Bin [31m145722[m -> [32m0[m bytes
+ frontend/images/gallery - Copy-cropped (4).png | Bin [31m130745[m -> [32m0[m bytes
+ frontend/images/gallery - Copy-cropped (5).png | Bin [31m54715[m -> [32m0[m bytes
+ frontend/images/gallery - Copy-cropped (6).png | Bin [31m178638[m -> [32m0[m bytes
+ frontend/images/gallery - Copy-cropped (7).png | Bin [31m101602[m -> [32m0[m bytes
+ frontend/images/gallery - Copy-cropped (8).png | Bin [31m58883[m -> [32m0[m bytes
+ frontend/images/gallery - Copy-cropped.png     | Bin [31m112370[m -> [32m0[m bytes
+ frontend/src/App.js                            |  12 [32m+[m[31m-[m
+ frontend/src/components/Layout.js              |   4 [32m+[m[31m-[m
+ frontend/src/components/Navbar.js              |   2 [32m+[m[31m-[m
+ frontend/src/components/PageHeader.js          |  49 [31m---[m
+ frontend/src/context/AuthContext.js            | 186 [31m----------[m
+ frontend/src/pages/About.js                    |   2 [32m+[m[31m-[m
+ frontend/src/pages/Account.js                  |   4 [32m+[m[31m-[m
+ frontend/src/pages/Blog.js                     |   4 [32m+[m[31m-[m
+ frontend/src/pages/Confirm.js                  |   4 [32m+[m[31m-[m
+ frontend/src/pages/Contact.js                  |   2 [32m+[m[31m-[m
+ frontend/src/pages/ForgotPassword.js           |  79 [31m-----[m
+ frontend/src/pages/Home.js                     |  18 [32m+[m[31m-[m
+ frontend/src/pages/Login.js                    |   4 [32m+[m[31m-[m
+ frontend/src/pages/PostEditor.js               |   4 [32m+[m[31m-[m
+ frontend/src/pages/Pricing.js                  |   2 [32m+[m[31m-[m
+ frontend/src/pages/Register.js                 |   4 [32m+[m[31m-[m
+ frontend/src/pages/ResetPassword.js            |  47 [31m---[m
+ frontend/src/pages/Services.js                 |   2 [32m+[m[31m-[m
+ frontend/src/pages/SingleBlog.js               | 460 [31m-------------------------[m
+ frontend/src/pages/Team.js                     |   2 [32m+[m[31m-[m
+ frontend/src/pages/Testimonials.js             |   2 [32m+[m[31m-[m
+ 32 files changed, 45 insertions(+), 860 deletions(-)
+ .vscode/GUIDE.MD                               |   5 [32m+[m[31m-[m
+ .vscode/git-guide.MD                           |   7 [32m+[m[31m-[m
+ frontend/images/gallery - Copy-cropped (1).png | Bin [31m155440[m -> [32m0[m bytes
+ frontend/images/gallery - Copy-cropped (2).png | Bin [31m57917[m -> [32m0[m bytes
+ frontend/images/gallery - Copy-cropped (3).png | Bin [31m145722[m -> [32m0[m bytes
+ frontend/images/gallery - Copy-cropped (4).png | Bin [31m130745[m -> [32m0[m bytes
+ frontend/images/gallery - Copy-cropped (5).png | Bin [31m54715[m -> [32m0[m bytes
+ frontend/images/gallery - Copy-cropped (6).png | Bin [31m178638[m -> [32m0[m bytes
+ frontend/images/gallery - Copy-cropped (7).png | Bin [31m101602[m -> [32m0[m bytes
+ frontend/images/gallery - Copy-cropped (8).png | Bin [31m58883[m -> [32m0[m bytes
+ frontend/images/gallery - Copy-cropped.png     | Bin [31m112370[m -> [32m0[m bytes
+ frontend/src/App.js                            |  12 [32m+[m[31m-[m
+ frontend/src/components/Layout.js              |   4 [32m+[m[31m-[m
+ frontend/src/components/Navbar.js              |   2 [32m+[m[31m-[m
+ frontend/src/components/PageHeader.js          |  49 [31m---[m
+ frontend/src/context/AuthContext.js            | 186 [31m----------[m
+ frontend/src/pages/About.js                    |   2 [32m+[m[31m-[m
+ frontend/src/pages/Account.js                  |   4 [32m+[m[31m-[m
+ frontend/src/pages/Blog.js                     |   4 [32m+[m[31m-[m
+ frontend/src/pages/Confirm.js                  |   4 [32m+[m[31m-[m
+ frontend/src/pages/Contact.js                  |   2 [32m+[m[31m-[m
+ frontend/src/pages/ForgotPassword.js           |  79 [31m-----[m
+ frontend/src/pages/Home.js                     |  18 [32m+[m[31m-[m
+ frontend/src/pages/Login.js                    |   4 [32m+[m[31m-[m
+ frontend/src/pages/PostEditor.js               |   4 [32m+[m[31m-[m
+ frontend/src/pages/Pricing.js                  |   2 [32m+[m[31m-[m
+ frontend/src/pages/Register.js                 |   4 [32m+[m[31m-[m
+ frontend/src/pages/ResetPassword.js            |  47 [31m---[m
+ frontend/src/pages/Services.js                 |   2 [32m+[m[31m-[m
+ frontend/src/pages/SingleBlog.js               | 460 [31m-------------------------[m
+ frontend/src/pages/Team.js                     |   2 [32m+[m[31m-[m
+ frontend/src/pages/Testimonials.js             |   2 [32m+[m[31m-[m
+ 32 files changed, 45 insertions(+), 860 deletions(-)

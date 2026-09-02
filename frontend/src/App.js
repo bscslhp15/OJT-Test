@@ -1,22 +1,22 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
-import Layout from './components/Layout';
+import { AuthProvider } from './context/auth-context';
+import Layout from './components/layout';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Confirm from './pages/Confirm';
 import About from './pages/About';
 import Blog from './pages/Blog';
-import SingleBlog from './pages/SingleBlog';
+import SingleBlog from './pages/single-blog';
 import Contact from './pages/Contact';
 import Pricing from './pages/Pricing';
 import Services from './pages/Services';
 import Testimonials from './pages/Testimonials';
-import PostEditor from './pages/PostEditor';
+import PostEditor from './pages/post-editor';
 import Account from './pages/Account';
 import Team from './pages/Team';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
+import ForgotPassword from './pages/forgot-password';
+import ResetPassword from './pages/reset-password';
 
 function App() {
   return (

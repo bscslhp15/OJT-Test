@@ -11,15 +11,15 @@ const features = [
 ];
 
 const gallery = [
-  { src: '/images/gallery%20-%20Copy-cropped%20(1).png', category: 'web' },
-  { src: '/images/gallery%20-%20Copy-cropped%20(2).png', category: 'web' },
-  { src: '/images/gallery%20-%20Copy-cropped%20(3).png', category: 'app' },
-  { src: '/images/gallery%20-%20Copy-cropped%20(4).png', category: 'app' },
-  { src: '/images/gallery%20-%20Copy-cropped%20(5).png', category: 'web' },
-  { src: '/images/gallery%20-%20Copy-cropped%20(6).png', category: 'web' },
-  { src: '/images/gallery%20-%20Copy-cropped%20(7).png', category: 'web' },
-  { src: '/images/gallery%20-%20Copy-cropped%20(8).png', category: 'web' },
-  { src: '/images/gallery%20-%20Copy-cropped.png', category: 'card' }
+  { src: '/images/gallery-image-1.png', category: 'web' },
+  { src: '/images/gallery-image-2.png', category: 'web' },
+  { src: '/images/gallery-image-3.png', category: 'app' },
+  { src: '/images/gallery-image-4.png', category: 'app' },
+  { src: '/images/gallery-image-5.png', category: 'web' },
+  { src: '/images/gallery-image-6.png', category: 'web' },
+  { src: '/images/gallery-image-7.png', category: 'web' },
+  { src: '/images/gallery-image-8.png', category: 'web' },
+  { src: '/images/gallery-image.png', category: 'card' }
 ];
 
 const clients = [

@@ -1,8 +1,8 @@
 import { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import PageHeader from '../components/PageHeader';
+import PageHeader from '../components/page-header';
 import { registerUser } from '../services/api';
-import AuthContext from '../context/AuthContext';
+import AuthContext from '../context/auth-context';
 
 const Register = () => {
   const navigate = useNavigate();

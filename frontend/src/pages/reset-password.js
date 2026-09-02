@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import PageHeader from '../components/PageHeader';
+import PageHeader from '../components/page-header';
 import { resetPassword } from '../services/api';
 
 const ResetPassword = () => {

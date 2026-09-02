@@ -1,4 +1,4 @@
-import PageHeader from '../components/PageHeader';
+import PageHeader from '../components/page-header';
 
 const teamMembers = [
   { name: 'Walter White', role: 'Chief Executive Officer', image: '/images/testimonials-office-boy.jpg' },

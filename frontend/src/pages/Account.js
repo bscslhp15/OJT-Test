@@ -1,7 +1,7 @@
 import { useContext, useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import PageHeader from '../components/PageHeader';
-import AuthContext from '../context/AuthContext';
+import PageHeader from '../components/page-header';
+import AuthContext from '../context/auth-context';
 import { updateProfile as updateProfileRequest, requestPasswordChange } from '../services/api';
 
 const getPostExcerpt = (post) => {

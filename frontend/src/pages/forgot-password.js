@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import PageHeader from '../components/PageHeader';
+import PageHeader from '../components/page-header';
 import { requestPasswordReset } from '../services/api';
 
 const ForgotPassword = ({ sent = false }) => {

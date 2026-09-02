@@ -1,7 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { useContext, useState } from 'react';
-import PageHeader from '../components/PageHeader';
-import AuthContext from '../context/AuthContext';
+import PageHeader from '../components/page-header';
+import AuthContext from '../context/auth-context';
 
 const getPostExcerpt = (post) => {
   if (post.description || post.excerpt) return post.description || post.excerpt;
