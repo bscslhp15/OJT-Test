@@ -9,8 +9,8 @@ export const AuthProvider = ({ children }) => {
     : null;
 
   const [user, setUser] = useState(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : null;
+    localStorage.removeItem(STORAGE_KEY);
+    return null;
   });
 
   const mergeStoredUser = (incomingUser) => {

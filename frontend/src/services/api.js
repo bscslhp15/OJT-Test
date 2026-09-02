@@ -13,6 +13,7 @@ export const updateProfile = (payload) => api.post('/auth/update-profile', paylo
 export const confirmAccount = (token) => api.get(`/confirm/${token}`);
 export const resendConfirmationEmail = (email) => api.post('/auth/resend-confirmation', { email });
 export const requestPasswordReset = (identifier) => api.post('/auth/forgot-password', { identifier });
+export const requestPasswordChange = (payload) => api.post('/auth/request-password-change', payload);
 export const resetPassword = (token, password) => api.post('/auth/reset-password', { token, password });
 export const fetchPost = (id) => api.get(`/post/${id}`);
 export const fetchPosts = () => api.get('/post');

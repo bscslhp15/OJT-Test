@@ -30,7 +30,10 @@ const Blog = () => {
   const { user } = useContext(AuthContext);
   const [searchParams] = useSearchParams();
   const [selectedCategories, setSelectedCategories] = useState([]);
-  const [selectedTags, setSelectedTags] = useState([]);
+  const [selectedTags, setSelectedTags] = useState(() => {
+    const tag = searchParams.get('tag');
+    return tag ? [tag] : [];
+  });
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('search') || '');
   const [currentPage, setCurrentPage] = useState(1);
   const postsPerPage = 10;

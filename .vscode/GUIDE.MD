@@ -3,7 +3,7 @@
 
 cd c:\xampp\htdocs\THESIS\OJT-Test\frontend
 npm install
-npm start
+ 
 http://localhost:3000
 
 

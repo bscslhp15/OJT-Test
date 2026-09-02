@@ -409,7 +409,12 @@ const SingleBlog = () => {
                 <h3 className="text-lg font-semibold text-slate-900">Tags</h3>
                 <div className="mt-5 flex flex-wrap gap-3">
                   {allTags.map((tag) => (
-                    <button key={tag} className="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:border-emerald-600 hover:text-emerald-600">
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => navigate(`/blog?tag=${encodeURIComponent(tag)}`)}
+                      className="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:border-emerald-600 hover:text-emerald-600"
+                    >
                       {tag}
                     </button>
                   ))}

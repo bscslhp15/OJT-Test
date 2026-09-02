@@ -2,7 +2,7 @@ import { useContext, useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import AuthContext from '../context/AuthContext';
-import { updateProfile as updateProfileRequest } from '../services/api';
+import { updateProfile as updateProfileRequest, requestPasswordChange } from '../services/api';
 
 const getPostExcerpt = (post) => {
   if (post.description || post.excerpt) return post.description || post.excerpt;
@@ -45,9 +45,16 @@ const ProfileValue = ({ value }) => (
   </span>
 );
 
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
+
 const Account = () => {
   const { user, updateProfile } = useContext(AuthContext);
   const [isEditing, setIsEditing] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [passwordChangeError, setPasswordChangeError] = useState('');
+  const [passwordChangeMessage, setPasswordChangeMessage] = useState('');
+  const [passwordRequestExpiresAt, setPasswordRequestExpiresAt] = useState(0);
+  const [passwordRequestRemaining, setPasswordRequestRemaining] = useState(0);
   const savedProfilePhoto = user?.profile_photo || (user?.email ? localStorage.getItem(`testsite-profile-${user.email.toLowerCase()}`) : null);
   const [photoPreview, setPhotoPreview] = useState(savedProfilePhoto);
   const photoInputRef = useRef(null);
@@ -67,6 +74,29 @@ const Account = () => {
     linkedin: user?.social?.linkedin || '',
     profilePhoto: user?.profile_photo || ''
   }));
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+
+  useEffect(() => {
+    if (!user?.email) return undefined;
+    const storageKey = `testsite-change-password-expires-${user.email.toLowerCase()}`;
+    const storedExpiresAt = Number(localStorage.getItem(storageKey) || 0);
+    const activeExpiry = storedExpiresAt > Date.now() ? storedExpiresAt : 0;
+    setPasswordRequestExpiresAt(activeExpiry);
+    setPasswordRequestRemaining(activeExpiry > 0 ? Math.max(0, Math.ceil((activeExpiry - Date.now()) / 1000)) : 0);
+
+    const timer = window.setInterval(() => {
+      const nextExpiry = Number(localStorage.getItem(storageKey) || 0);
+      const currentExpiry = nextExpiry > Date.now() ? nextExpiry : 0;
+      setPasswordRequestExpiresAt(currentExpiry);
+      setPasswordRequestRemaining(currentExpiry > 0 ? Math.max(0, Math.ceil((currentExpiry - Date.now()) / 1000)) : 0);
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [user?.email]);
 
   useEffect(() => {
     const profilePhoto = user?.profile_photo || (user?.email ? localStorage.getItem(`testsite-profile-${user.email.toLowerCase()}`) : null);
@@ -100,6 +130,54 @@ const Account = () => {
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm({ ...form, [name]: value });
+  };
+
+  const handlePasswordFormChange = (event) => {
+    const { name, value } = event.target;
+    setPasswordForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handlePasswordChangeRequest = async () => {
+    setPasswordChangeError('');
+    setPasswordChangeMessage('');
+
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      setPasswordChangeError('All password fields are required.');
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordChangeError('New passwords do not match.');
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordChangeError('New password must be at least 8 characters long.');
+      return;
+    }
+
+    try {
+      const response = await requestPasswordChange({
+        authKey: user.authKey,
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+        confirmNewPassword: passwordForm.confirmPassword
+      });
+
+      const serverExpiresAt = Number(response.data.resetExpiresAt || 0);
+      const expiresAt = Number.isFinite(serverExpiresAt) && serverExpiresAt > Date.now()
+        ? serverExpiresAt
+        : Date.now() + FIVE_MINUTES_MS;
+
+      localStorage.setItem(`testsite-change-password-expires-${user.email.toLowerCase()}`, String(expiresAt));
+      setPasswordRequestExpiresAt(expiresAt);
+      setPasswordRequestRemaining(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
+      setPasswordChangeMessage(response.data.message || 'A password change confirmation email has been sent.');
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setShowPasswordForm(false);
+    } catch (error) {
+      setPasswordChangeError(error.response?.data?.message || 'Unable to send the password change confirmation email.');
+    }
   };
 
   const handlePhotoUpload = (event) => {
@@ -232,18 +310,79 @@ const Account = () => {
                 <div>
                   <h3 className="text-[2rem] font-bold tracking-tight text-slate-900">Security</h3>
                   <div className="mt-4 border-t border-slate-300" />
-                  <div className="mt-6">
-                    <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">New Password</label>
-                    <input
-                      name="newPassword"
-                      value={form.newPassword}
-                      onChange={handleChange}
-                      disabled={!isEditing}
-                      type="password"
-                      placeholder="Leave blank to keep current password"
-                      className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder-slate-500 focus:border-[#22C55E] focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20 disabled:bg-slate-50"
-                    />
-                  </div>
+
+                  {!showPasswordForm && !passwordChangeMessage && (
+                    <div className="mt-6">
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswordForm(true)}
+                        className="rounded-xl bg-[#22C55E] px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-600"
+                      >
+                        Change Password
+                      </button>
+                    </div>
+                  )}
+
+                  {showPasswordForm && (
+                    <div className="mt-6 space-y-4">
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Current Password</label>
+                        <input
+                          name="currentPassword"
+                          value={passwordForm.currentPassword}
+                          onChange={handlePasswordFormChange}
+                          type="password"
+                          className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder-slate-500 focus:border-[#22C55E] focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">New Password</label>
+                        <input
+                          name="newPassword"
+                          value={passwordForm.newPassword}
+                          onChange={handlePasswordFormChange}
+                          type="password"
+                          className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder-slate-500 focus:border-[#22C55E] focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Confirm New Password</label>
+                        <input
+                          name="confirmPassword"
+                          value={passwordForm.confirmPassword}
+                          onChange={handlePasswordFormChange}
+                          type="password"
+                          className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder-slate-500 focus:border-[#22C55E] focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20"
+                        />
+                      </div>
+
+                      {passwordChangeError && (
+                        <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{passwordChangeError}</div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handlePasswordChangeRequest}
+                        className="w-full rounded-xl bg-[#22C55E] px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-600"
+                      >
+                        Change Password
+                      </button>
+                    </div>
+                  )}
+
+                  {passwordChangeMessage && passwordRequestExpiresAt > 0 && (
+                    <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                      <p className="font-semibold">Check your email</p>
+                      <p className="mt-1">{passwordChangeMessage}</p>
+                      <p className={`mt-3 font-semibold ${passwordRequestRemaining === 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                        {passwordRequestRemaining > 0
+                          ? `Confirmation link expires in ${Math.floor(passwordRequestRemaining / 60)}:${String(passwordRequestRemaining % 60).padStart(2, '0')}`
+                          : 'This confirmation link has expired. Request a new password change.'}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div>

@@ -110,6 +110,55 @@ class AuthController extends Controller
         ];
     }
 
+    public function actionRequestPasswordChange()
+    {
+        $body = Yii::$app->request->bodyParams;
+        $authKey = $body['authKey'] ?? '';
+        $currentPassword = $body['currentPassword'] ?? '';
+        $newPassword = $body['newPassword'] ?? '';
+        $confirmNewPassword = $body['confirmNewPassword'] ?? '';
+
+        $user = User::findOne(['auth_key' => $authKey]);
+        if (!$user) {
+            throw new BadRequestHttpException('Invalid user credentials.');
+        }
+        if (!$user->validatePassword($currentPassword)) {
+            throw new BadRequestHttpException('The current password is incorrect.');
+        }
+        if ($newPassword !== $confirmNewPassword) {
+            throw new BadRequestHttpException('New passwords do not match.');
+        }
+        if (strlen($newPassword) < 8) {
+            throw new BadRequestHttpException('New password must be at least 8 characters.');
+        }
+
+        $user->password_reset_token = bin2hex(random_bytes(32));
+        $user->password_reset_expires_at = date('Y-m-d H:i:s', time() + 300);
+        $user->save(false);
+
+        $emailSent = $this->sendPasswordResetEmail(
+            $user,
+            'Confirm your password change',
+            "Hello {$user->first_name},\n\n"
+            . "Use this link to finish changing your TestSite password:\n"
+            . rtrim(Yii::$app->params['frontendUrl'] ?? 'http://localhost:3000', '/')
+            . '/reset-password/' . rawurlencode($user->password_reset_token)
+            . "\n\n"
+            . "This link expires in 5 minutes. If you did not request this change, you can ignore this email."
+        );
+
+        if (!$emailSent) {
+            throw new BadRequestHttpException('The password change confirmation email could not be sent. Check the mail server configuration.');
+        }
+
+        return [
+            'success' => true,
+            'message' => 'A password change confirmation email has been sent.',
+            'resetExpiresAt' => strtotime($user->password_reset_expires_at) * 1000,
+            'resetEmail' => $user->email,
+        ];
+    }
+
     public function actionResetPassword()
     {
         $body = Yii::$app->request->bodyParams;
@@ -236,16 +285,16 @@ class AuthController extends Controller
         }
     }
 
-    private function sendPasswordResetEmail(User $user)
+    private function sendPasswordResetEmail(User $user, $subject = null, $body = null)
     {
         $frontendUrl = rtrim(Yii::$app->params['frontendUrl'] ?? 'http://localhost:3000', '/');
         $fromEmail = Yii::$app->params['mailFrom'] ?? 'no-reply@example.com';
         $resetUrl = $frontendUrl . '/reset-password/' . rawurlencode($user->password_reset_token);
-        $subject = 'Reset your TestSite password';
-        $body = "Hello {$user->first_name},\n\n"
+        $subject = $subject ?? 'Reset your TestSite password';
+        $body = $body ?? ("Hello {$user->first_name},\n\n"
             . "Use this link to set a new TestSite password:\n"
             . $resetUrl . "\n\n"
-            . "This link expires in 5 minutes. If you did not request this, you can ignore this email.";
+            . "This link expires in 5 minutes. If you did not request this, you can ignore this email.");
 
         try {
             $mailer = new PHPMailer(true);

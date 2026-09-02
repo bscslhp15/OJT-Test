@@ -55,6 +55,7 @@ $config = [
                         'POST update-profile' => 'update-profile',
                         'POST resend-confirmation' => 'resend-confirmation',
                         'POST forgot-password' => 'forgot-password',
+                        'POST request-password-change' => 'request-password-change',
                         'POST reset-password' => 'reset-password',
                     ],
                 ],
