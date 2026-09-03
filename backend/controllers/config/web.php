@@ -48,7 +48,7 @@ $config = [
                 'confirm/<token>' => 'auth/confirm',
                 [
                     'class' => 'yii\rest\UrlRule',
-                    'controller' => ['auth', 'post', 'comment'],
+                    'controller' => ['auth', 'post', 'comment', 'contact'],
                     'extraPatterns' => [
                         'POST register' => 'register',
                         'POST login' => 'login',
@@ -57,6 +57,7 @@ $config = [
                         'POST forgot-password' => 'forgot-password',
                         'POST request-password-change' => 'request-password-change',
                         'POST reset-password' => 'reset-password',
+                        'POST send-message' => 'send-message',
                     ],
                 ],
             ],

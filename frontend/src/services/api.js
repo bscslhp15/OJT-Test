@@ -15,6 +15,7 @@ export const resendConfirmationEmail = (email) => api.post('/auth/resend-confirm
 export const requestPasswordReset = (identifier) => api.post('/auth/forgot-password', { identifier });
 export const requestPasswordChange = (payload) => api.post('/auth/request-password-change', payload);
 export const resetPassword = (token, password) => api.post('/auth/reset-password', { token, password });
+export const sendContactMessage = (payload) => api.post('/contact/send-message', payload);
 export const fetchPost = (id) => api.get(`/post/${id}`);
 export const fetchPosts = () => api.get('/post');
 export const createComment = (payload) => api.post('/comment', payload);

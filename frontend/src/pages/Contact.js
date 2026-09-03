@@ -1,5 +1,6 @@
 import PageHeader from '../components/page-header';
 import { useState, useEffect } from 'react';
+import { sendContactMessage } from '../services/api';
 
 const ContactHero = () => {
   const [src, setSrc] = useState('/images/alaminos-location.png');
@@ -18,6 +19,33 @@ const ContactHero = () => {
 };
 
 const Contact = () => {
+  const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' });
+  const [status, setStatus] = useState({ type: '', message: '' });
+  const [isSending, setIsSending] = useState(false);
+
+  const handleChange = (event) => {
+    setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setStatus({ type: '', message: '' });
+    setIsSending(true);
+
+    try {
+      const response = await sendContactMessage(form);
+      setStatus({ type: 'success', message: response.data.message });
+      setForm({ name: '', email: '', subject: '', message: '' });
+    } catch (error) {
+      setStatus({
+        type: 'error',
+        message: error.response?.data?.message || 'The message could not be sent. Please try again.'
+      });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   return (
     <>
       <PageHeader title="Contact" />
@@ -68,27 +96,32 @@ const Contact = () => {
           </div>
 
           <div className="rounded-3xl bg-white p-10 shadow-xl">
-            <form className="space-y-6">
+            <form className="space-y-6" onSubmit={handleSubmit}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium text-slate-700">Your Name</label>
-                  <input type="text" className="mt-3 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#22C55E] focus:ring-2 focus:ring-[#22C55E]/10" />
+                    <input name="name" value={form.name} onChange={handleChange} required type="text" className="mt-3 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#22C55E] focus:ring-2 focus:ring-[#22C55E]/10" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700">Your Email</label>
-                  <input type="email" className="mt-3 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#22C55E] focus:ring-2 focus:ring-[#22C55E]/10" />
+                    <input name="email" value={form.email} onChange={handleChange} required type="email" className="mt-3 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#22C55E] focus:ring-2 focus:ring-[#22C55E]/10" />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700">Subject</label>
-                <input type="text" className="mt-3 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#22C55E] focus:ring-2 focus:ring-[#22C55E]/10" />
+                <input name="subject" value={form.subject} onChange={handleChange} required type="text" className="mt-3 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#22C55E] focus:ring-2 focus:ring-[#22C55E]/10" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700">Message</label>
-                <textarea rows="6" className="mt-3 w-full rounded-3xl border border-slate-200 px-4 py-4 text-sm text-slate-900 outline-none focus:border-[#22C55E] focus:ring-2 focus:ring-[#22C55E]/10"></textarea>
+                <textarea name="message" value={form.message} onChange={handleChange} required rows="6" className="mt-3 w-full rounded-3xl border border-slate-200 px-4 py-4 text-sm text-slate-900 outline-none focus:border-[#22C55E] focus:ring-2 focus:ring-[#22C55E]/10"></textarea>
               </div>
-              <button type="submit" className="w-full rounded-3xl bg-[#22C55E] px-6 py-4 text-sm font-semibold text-white transition hover:bg-emerald-700">
-                Send Message
+              {status.message && (
+                <p className={`text-sm ${status.type === 'success' ? 'text-emerald-600' : 'text-red-600'}`} role="status">
+                  {status.message}
+                </p>
+              )}
+              <button type="submit" disabled={isSending} className="w-full rounded-3xl bg-[#22C55E] px-6 py-4 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
+                {isSending ? 'Sending...' : 'Send Message'}
               </button>
             </form>
           </div>

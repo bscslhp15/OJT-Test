@@ -15,5 +15,9 @@ git diff --cached --stat
 git commit -m "Update system"
 git push
 
+cd "C:\xampp\htdocs\THESIS\OJT-Test"
+git add .
+git commit -m "Update system"
+git push
 
 git clone https://github.com/bscslhp15/OJT-Test.git
