@@ -66,6 +66,7 @@ const Navbar = () => {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const aboutRef = useRef(null);
+  const aboutMobileRef = useRef(null);
   const profileRef = useRef(null);
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -95,7 +96,9 @@ const Navbar = () => {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (aboutRef.current && !aboutRef.current.contains(event.target)) {
+      const clickedInsideAbout = aboutRef.current?.contains(event.target)
+        || aboutMobileRef.current?.contains(event.target);
+      if (!clickedInsideAbout) {
         setAboutOpen(false);
       }
       if (profileRef.current && !profileRef.current.contains(event.target)) {
@@ -198,7 +201,7 @@ const Navbar = () => {
                   <div className="relative" ref={profileRef}>
                     <button
                       onClick={() => setProfileOpen(!profileOpen)}
-                      className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
+                      className="flex items-center gap-2 text-base font-medium text-slate-600 transition hover:text-emerald-600"
                       type="button"
                     >
                       {profilePhoto ? (
@@ -266,18 +269,51 @@ const Navbar = () => {
         <div className="lg:hidden border-t border-slate-200 bg-white">
           <div className="space-y-2 px-4 py-4">
             {navItems.map((item) => (
-              <NavLink
-                key={item.label}
-                to={item.to}
-                end={item.to === '/'}
-                onClick={() => setMobileOpen(false)}
-                className={({ isActive }) => `block ${isActive ? 'text-[#22C55E]' : 'text-slate-700'} group hover:text-emerald-600`}
-              >
-                <span className="relative inline-block">
-                  {item.label}
-                  <span className={`${window.location.pathname === item.to ? 'w-full' : 'w-0 group-hover:w-full'} absolute left-0 -bottom-1 h-0.5 bg-emerald-600 transition-all duration-200`} />
-                </span>
-              </NavLink>
+              item.label === 'About' ? (
+                <div key={item.label} ref={aboutMobileRef} className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setAboutOpen((isOpen) => !isOpen)}
+                    aria-expanded={aboutOpen}
+                    className={`${window.location.pathname === item.to ? 'text-[#22C55E]' : 'text-slate-700'} flex items-center gap-2 text-left group hover:text-emerald-600`}
+                  >
+                    <span className="relative inline-block">
+                      {item.label}
+                      <span className={`${window.location.pathname === item.to ? 'w-full' : 'w-0 group-hover:w-full'} absolute left-0 -bottom-1 h-0.5 bg-emerald-600 transition-all duration-200`} />
+                    </span>
+                    <svg className={`h-4 w-4 transition-transform ${aboutOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06-.02L10 10.585l3.71-3.396a.75.75 0 111.02 1.1l-4.2 3.84a.75.75 0 01-1.02 0l-4.2-3.84a.75.75 0 01-.02-1.06z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  {aboutOpen && (
+                    <div className="space-y-1 border-l-2 border-emerald-100 pl-4">
+                      {aboutMenu.map((menuItem) => (
+                        <Link
+                          key={menuItem.label}
+                          to={menuItem.to}
+                          onClick={() => { setAboutOpen(false); setMobileOpen(false); }}
+                          className="block py-2 text-sm text-slate-600 hover:text-emerald-600"
+                        >
+                          {menuItem.label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <NavLink
+                  key={item.label}
+                  to={item.to}
+                  end={item.to === '/'}
+                  onClick={() => { setAboutOpen(false); setMobileOpen(false); }}
+                  className={({ isActive }) => `block ${isActive ? 'text-[#22C55E]' : 'text-slate-700'} group hover:text-emerald-600`}
+                >
+                  <span className="relative inline-block">
+                    {item.label}
+                    <span className={`${window.location.pathname === item.to ? 'w-full' : 'w-0 group-hover:w-full'} absolute left-0 -bottom-1 h-0.5 bg-emerald-600 transition-all duration-200`} />
+                  </span>
+                </NavLink>
+              )
             ))}
             {!isAuthenticated ? (
               <>

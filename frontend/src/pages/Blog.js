@@ -3,8 +3,31 @@ import { useContext, useState } from 'react';
 import PageHeader from '../components/page-header';
 import AuthContext from '../context/auth-context';
 
+const firstRichTextToPlainText = (html) => {
+  const container = document.createElement('div');
+  container.innerHTML = html || '';
+  for (const node of container.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+      return node.textContent.replace(/\s+/g, ' ').trim();
+    }
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const element = node.matches('p, h1, h2, h3, h4, h5, h6, blockquote, li')
+        ? node
+        : node.querySelector('p, h1, h2, h3, h4, h5, h6, blockquote, li');
+      const text = element?.textContent || (node.tagName !== 'BR' ? node.textContent : '');
+      if (text?.trim()) return text.replace(/\s+/g, ' ').trim();
+    }
+  }
+  return (container.textContent || '').replace(/\s+/g, ' ').trim();
+};
+
+const firstTwoSentences = (text) => {
+  const sentences = String(text || '').match(/[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g) || [];
+  return sentences.slice(0, 2).join(' ').trim();
+};
+
 const getPostExcerpt = (post) => {
-  if (post.description || post.excerpt) return post.description || post.excerpt;
+  if (post.description || post.excerpt) return firstTwoSentences(post.description || post.excerpt);
 
   if (typeof post.content !== 'string') return 'No description available';
 
@@ -14,16 +37,22 @@ const getPostExcerpt = (post) => {
       const firstBlock = parsed.blocks.find((block) => block.type === 'paragraph' && block.data?.text)
         || parsed.blocks.find((block) => block.data?.text || block.data?.caption);
       const text = firstBlock
-        ? (firstBlock.data?.text || firstBlock.data?.caption || '').replace(/\s+/g, ' ').trim()
+        ? firstRichTextToPlainText(firstBlock.data?.text || firstBlock.data?.caption || '')
         : '';
-      return text ? text.substring(0, 150) : 'No description available';
+      return text ? firstTwoSentences(text) : 'No description available';
     }
   } catch (error) {
     // Continue with the legacy HTML excerpt below.
   }
 
-  const text = post.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-  return text ? text.substring(0, 150) : 'No description available';
+  const text = firstRichTextToPlainText(post.content);
+  return text ? firstTwoSentences(text) : 'No description available';
+};
+
+const legacyCategories = new Set(['General', 'Design', 'Development', 'Branding', 'Marketing']);
+const normalizeCategory = (category) => {
+  const value = String(category || '').trim();
+  return legacyCategories.has(value) ? 'Uncategorized' : value;
 };
 
 const Blog = () => {
@@ -52,11 +81,12 @@ const Blog = () => {
     return { ...post, author: 'Author' };
   };
   
-  const globalPostsEnriched = globalPosts.map(enrichPost);
-  const userPostsEnriched = userPosts.map(enrichPost);
+  const globalPostsEnriched = globalPosts.map((post) => ({ ...enrichPost(post), category: normalizeCategory(post.category) }));
+  const userPostsEnriched = userPosts.map((post) => ({ ...enrichPost(post), category: normalizeCategory(post.category) }));
   const mergedPosts = [...globalPostsEnriched, ...userPostsEnriched.filter((post) => !globalPostsEnriched.some((item) => String(item.id) === String(post.id)))];
   const categoryData = mergedPosts.reduce((categoriesByName, post) => {
-    const category = post.category || 'General';
+    const category = post.category;
+    if (!category) return categoriesByName;
     categoriesByName[category] = (categoriesByName[category] || 0) + 1;
     return categoriesByName;
   }, {});
@@ -70,7 +100,7 @@ const Blog = () => {
   }, {});
   const tags = Object.entries(tagData);
   const displayPosts = mergedPosts.filter((post) => {
-    const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(post.category || 'General');
+    const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(post.category);
     const postTags = Array.isArray(post.tags) ? post.tags : [];
     const matchesTag = selectedTags.length === 0 || selectedTags.some((tag) => postTags.includes(tag));
     const searchableText = `${post.title || ''} ${post.author || ''} ${getPostExcerpt(post)}`.toLowerCase();

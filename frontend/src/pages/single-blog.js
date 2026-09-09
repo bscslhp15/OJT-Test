@@ -4,26 +4,164 @@ import PageHeader from '../components/page-header';
 import AuthContext from '../context/auth-context';
 
 const defaultProfile = '/images/default-profile.jpg';
+const legacyCategories = new Set(['General', 'Design', 'Development', 'Branding', 'Marketing']);
+const normalizeCategory = (category) => {
+  const value = String(category || '').trim();
+  return legacyCategories.has(value) ? 'Uncategorized' : value;
+};
 
-const renderPostContent = (content) => {
+const normalizeImageCaptionLinks = (html) => {
+  if (!html || typeof document === 'undefined') return html || '';
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = html;
+
+  wrapper.querySelectorAll('figure[data-editor-image]').forEach((figure) => {
+    const caption = figure.querySelector('figcaption');
+    const link = caption?.closest('a');
+    if (!caption || !link) return;
+
+    link.parentNode.insertBefore(caption, link.nextSibling);
+  });
+
+  return wrapper.innerHTML;
+};
+
+const splitAtReadMore = (html) => {
+  const marker = '<div data-read-more="true"';
+  const markerStart = html.indexOf(marker);
+  if (markerStart === -1) return null;
+
+  const markerEnd = html.indexOf('</div>', markerStart);
+  if (markerEnd === -1) return null;
+
+  return {
+    before: html.slice(0, markerStart),
+    after: html.slice(markerEnd + '</div>'.length)
+  };
+};
+
+const removePageBreakMarkup = (html) => html
+  .replace(/<div data-page-break="true"[^>]*>[\s\S]*?<\/div>/gi, '')
+  .replace(/<div data-page-break="true"[^>]*>[\s\S]*$/gi, '')
+  .replace(/^\s*<\/div>/i, '')
+  .trim();
+
+const splitHtmlAtPageBreaks = (html) => html.includes('<!--nextpage-->')
+  ? html.split('<!--nextpage-->').map(removePageBreakMarkup)
+  : null;
+
+const renderBlock = (block, index, textOverride) => {
+  const key = block.id || `${block.type}-${index}`;
+  const text = normalizeImageCaptionLinks(textOverride ?? block.data?.text ?? '');
+  if (block.type === 'image' && block.data?.url && text === '') {
+    return <figure key={key} className="my-8"><img src={block.data.url} alt={block.data.caption || 'Post image'} className="w-full object-cover" /></figure>;
+  }
+  return <div key={key} className="post-editor-content" dangerouslySetInnerHTML={{ __html: text }} />;
+};
+
+const ReadMoreContent = ({ content }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  let blocks = null;
+
   try {
     const parsed = JSON.parse(content || '');
-    if (parsed && Array.isArray(parsed.blocks)) {
-      return parsed.blocks.map((block, index) => {
-        const key = block.id || `${block.type}-${index}`;
-        const text = block.data?.text || '';
-        if (block.type === 'header') return <h2 key={key} className="mt-8 text-2xl font-semibold text-slate-900 first:mt-0">{text}</h2>;
-        if (block.type === 'quote') return <blockquote key={key} className="my-6 border-l-4 border-emerald-500 pl-5 text-lg italic text-slate-600">{text}</blockquote>;
-        if (block.type === 'list') return <ul key={key} className="my-5 list-disc space-y-2 pl-6">{text.split('\n').filter(Boolean).map((item, itemIndex) => <li key={`${key}-${itemIndex}`}>{item}</li>)}</ul>;
-        if (block.type === 'image' && block.data?.url) return <figure key={key} className="my-8"><img src={block.data.url} alt={block.data.caption || 'Post image'} className="w-full object-cover" /></figure>;
-        return <p key={key} className="my-5 whitespace-pre-line">{text}</p>;
-      });
-    }
+    if (parsed && Array.isArray(parsed.blocks)) blocks = parsed.blocks;
   } catch (error) {
     // Render legacy HTML posts below.
   }
 
-  return <div dangerouslySetInnerHTML={{ __html: content || '' }} />;
+  if (blocks) {
+    const pages = [[]];
+    blocks.forEach((block) => {
+      const text = block.data?.text || '';
+      const blockParts = text.split('<!--nextpage-->');
+      blockParts.forEach((part, partIndex) => {
+        const cleanedPart = removePageBreakMarkup(part);
+        if (cleanedPart || (block.type === 'image' && partIndex === 0)) {
+          pages[pages.length - 1].push({ ...block, data: { ...block.data, text: cleanedPart } });
+        }
+        if (partIndex < blockParts.length - 1) pages.push([]);
+      });
+    });
+    if (pages.length > 1) {
+      const pageIndex = Math.min(currentPage - 1, pages.length - 1);
+      return (
+        <>
+          <div className="space-y-1">{pages[pageIndex].map((block, index) => renderBlock(block, index))}</div>
+          <nav className="mt-8 flex flex-wrap items-center justify-center gap-2" aria-label="Post pages">
+            <button type="button" disabled={pageIndex === 0} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} className="border border-slate-300 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
+            {pages.map((_, index) => (
+              <button key={index + 1} type="button" onClick={() => setCurrentPage(index + 1)} aria-current={pageIndex === index ? 'page' : undefined} className={`min-w-9 border px-3 py-2 text-sm ${pageIndex === index ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 text-slate-700 hover:border-emerald-500'}`}>
+                {index + 1}
+              </button>
+            ))}
+            <button type="button" disabled={pageIndex === pages.length - 1} onClick={() => setCurrentPage((page) => Math.min(pages.length, page + 1))} className="border border-slate-300 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+          </nav>
+        </>
+      );
+    }
+  }
+
+  if (blocks) {
+    const markerIndex = blocks.findIndex((block) => (block.data?.text || '').includes('data-read-more="true"'));
+    if (markerIndex !== -1) {
+      const markerBlock = blocks[markerIndex];
+      const splitMarkerBlock = splitAtReadMore(markerBlock.data?.text || '');
+      const beforeBlocks = blocks.slice(0, markerIndex);
+      const afterBlocks = blocks.slice(markerIndex + 1);
+
+      return (
+        <>
+          {beforeBlocks.map((block, index) => renderBlock(block, index))}
+          {splitMarkerBlock?.before && renderBlock(markerBlock, markerIndex, splitMarkerBlock.before)}
+          <div className="read-more-divider">
+            <button type="button" onClick={() => setIsExpanded((expanded) => !expanded)} className="read-more-button" aria-expanded={isExpanded}>
+              {isExpanded ? 'Read less' : 'Read more'}
+            </button>
+          </div>
+          {isExpanded && splitMarkerBlock?.after && renderBlock(markerBlock, `${markerIndex}-after`, splitMarkerBlock.after)}
+          {isExpanded && afterBlocks.map((block, index) => renderBlock(block, `${markerIndex + index + 1}`))}
+        </>
+      );
+    }
+
+    return blocks.map((block, index) => renderBlock(block, index));
+  }
+
+  const html = normalizeImageCaptionLinks(content || '');
+  const pages = splitHtmlAtPageBreaks(html);
+  if (pages && pages.length > 1) {
+    const pageIndex = Math.min(currentPage - 1, pages.length - 1);
+    return (
+      <>
+        <div className="post-editor-content" dangerouslySetInnerHTML={{ __html: pages[pageIndex] }} />
+        <nav className="mt-8 flex flex-wrap items-center justify-center gap-2" aria-label="Post pages">
+          <button type="button" disabled={pageIndex === 0} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} className="border border-slate-300 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
+          {pages.map((_, index) => (
+            <button key={index + 1} type="button" onClick={() => setCurrentPage(index + 1)} aria-current={pageIndex === index ? 'page' : undefined} className={`min-w-9 border px-3 py-2 text-sm ${pageIndex === index ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 text-slate-700 hover:border-emerald-500'}`}>
+              {index + 1}
+            </button>
+          ))}
+          <button type="button" disabled={pageIndex === pages.length - 1} onClick={() => setCurrentPage((page) => Math.min(pages.length, page + 1))} className="border border-slate-300 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+        </nav>
+      </>
+    );
+  }
+  const splitContent = splitAtReadMore(html);
+  if (!splitContent) return <div className="post-editor-content" dangerouslySetInnerHTML={{ __html: html }} />;
+
+  return (
+    <>
+      <div className="post-editor-content" dangerouslySetInnerHTML={{ __html: splitContent.before }} />
+      <div className="read-more-divider">
+        <button type="button" onClick={() => setIsExpanded((expanded) => !expanded)} className="read-more-button" aria-expanded={isExpanded}>
+          {isExpanded ? 'Read less' : 'Read more'}
+        </button>
+      </div>
+      {isExpanded && <div className="post-editor-content" dangerouslySetInnerHTML={{ __html: splitContent.after }} />}
+    </>
+  );
 };
 
 const SingleBlog = () => {
@@ -59,8 +197,8 @@ const SingleBlog = () => {
     return { ...post, author: 'Author' };
   };
   
-  const globalPostsEnriched = globalPosts.map(enrichPost);
-  const userPostsEnriched = userPosts.map(enrichPost);
+  const globalPostsEnriched = globalPosts.map((post) => ({ ...enrichPost(post), category: normalizeCategory(post.category) }));
+  const userPostsEnriched = userPosts.map((post) => ({ ...enrichPost(post), category: normalizeCategory(post.category) }));
   const allPosts = [...globalPostsEnriched, ...userPostsEnriched.filter((post) => !globalPostsEnriched.some((item) => String(item.id) === String(post.id)))];
   const post = allPosts.find((p) => String(p.id) === String(id));
 
@@ -92,14 +230,15 @@ const SingleBlog = () => {
   }
 
   const categoryData = allPosts.reduce((categoriesByName, item) => {
-    const category = item.category || 'General';
+    const category = item.category;
+    if (!category) return categoriesByName;
     categoriesByName[category] = (categoriesByName[category] || 0) + 1;
     return categoriesByName;
   }, {});
   const categories = Object.entries(categoryData);
   const filteredPosts = selectedCategories.length === 0
     ? allPosts
-    : allPosts.filter((item) => selectedCategories.includes(item.category || 'General'));
+    : allPosts.filter((item) => selectedCategories.includes(item.category));
   const recentPosts = filteredPosts.slice(0, 3);
   const allTags = post.tags || [];
 
@@ -282,10 +421,10 @@ const SingleBlog = () => {
                 <img src={post.featuredImage || post.image} alt={post.title} className="w-full object-cover" style={{ height: 440 }} />
               )}
               <div className="p-8">
-                <div className="text-sm uppercase tracking-[0.3em] text-emerald-600">{post.category || 'General'}</div>
+                {post.category && <div className="text-sm uppercase tracking-[0.3em] text-emerald-600">{post.category}</div>}
                 <h1 className="mt-3 text-3xl font-semibold text-slate-900">{post.title}</h1>
                 <div className="mt-3 text-sm text-slate-600">By {post.author || 'Author'}</div>
-                <div className="mt-6 prose prose-sm max-w-none text-slate-700 leading-7">{renderPostContent(post.content)}</div>
+                <div className="mt-6 max-w-none text-slate-700 leading-7"><ReadMoreContent content={post.content} /></div>
               </div>
             </div>
 

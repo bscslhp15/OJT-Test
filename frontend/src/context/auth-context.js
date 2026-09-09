@@ -1,6 +1,16 @@
 import { createContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext();
+const setStorageItemSafely = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    if (error?.name !== 'QuotaExceededError') throw error;
+    console.warn(`Storage quota exceeded while saving ${key}.`);
+    return false;
+  }
+};
 
 export const AuthProvider = ({ children }) => {
   const STORAGE_KEY = 'testsite-user';
@@ -9,8 +19,28 @@ export const AuthProvider = ({ children }) => {
     : null;
 
   const [user, setUser] = useState(() => {
-    localStorage.removeItem(STORAGE_KEY);
-    return null;
+    try {
+      const storedUser = localStorage.getItem(STORAGE_KEY);
+      if (!storedUser) return null;
+
+      const parsedUser = JSON.parse(storedUser);
+      if (!parsedUser) return null;
+
+      const email = String(parsedUser.email || '').toLowerCase();
+      const username = String(parsedUser.username || '').toLowerCase();
+      const savedPosts = JSON.parse(localStorage.getItem('testsite-posts') || '[]');
+      const posts = Array.isArray(savedPosts)
+        ? savedPosts.filter((post) => {
+            const authorId = String(post.authorId || '').toLowerCase();
+            return (email && authorId === email) || (username && authorId === username);
+          })
+        : [];
+
+      return { ...parsedUser, posts };
+    } catch (error) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
   });
 
   const mergeStoredUser = (incomingUser) => {
@@ -89,10 +119,12 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     if (user) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+      const lightweightUser = { ...user };
+      delete lightweightUser.posts;
+      setStorageItemSafely(STORAGE_KEY, JSON.stringify(lightweightUser));
       const persistedUserKey = getPersistedUserKey(user);
       if (persistedUserKey) {
-        localStorage.setItem(persistedUserKey, JSON.stringify(user));
+        setStorageItemSafely(persistedUserKey, JSON.stringify(lightweightUser));
       }
     } else {
       localStorage.removeItem(STORAGE_KEY);
@@ -112,9 +144,6 @@ export const AuthProvider = ({ children }) => {
     if (!prev) return prev;
 
     const nextUser = { ...prev, ...updates };
-    if (nextUser.email && Array.isArray(nextUser.posts)) {
-      localStorage.setItem(`testsite-posts-${nextUser.email.toLowerCase()}`, JSON.stringify(nextUser.posts));
-    }
     const profilePhotoChanged = Object.prototype.hasOwnProperty.call(updates, 'profile_photo');
     const savedPosts = JSON.parse(localStorage.getItem('testsite-posts') || '[]');
     const updatedPosts = savedPosts.map((post) => {

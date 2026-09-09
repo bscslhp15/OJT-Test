@@ -2,24 +2,24 @@ import { Link } from 'react-router-dom';
 import { useState, useMemo, useRef, useLayoutEffect } from 'react';
 
 const features = [
-  { title: 'Strategic Planning', body: 'We help you develop comprehensive business strategies that drive growth and increase profitability for your organization.', icon: 'fa-solid fa-lightbulb', color: 'text-blue-600' },
-  { title: 'Project Management', body: 'Expert project coordination and management to ensure timely delivery, quality results, and optimal resource allocation.', icon: 'fa-solid fa-tasks', color: 'text-emerald-600' },
-  { title: 'Team Development', body: 'Comprehensive training and development programs to enhance employee skills and boost productivity across your organization.', icon: 'fa-solid fa-users', color: 'text-purple-600' },
-  { title: 'Risk Management', body: 'Proactive identification and mitigation of business risks to protect your assets and ensure sustainable growth.', icon: 'fa-solid fa-shield-halved', color: 'text-amber-500' },
-  { title: 'Process Optimization', body: 'Streamline your business processes to reduce costs, improve efficiency, and enhance overall operational performance.', icon: 'fa-solid fa-cogs', color: 'text-teal-600' },
-  { title: 'Consultation Services', body: 'Expert business consultation to guide your company through challenges and unlock new opportunities for expansion.', icon: 'fa-solid fa-comments', color: 'text-rose-500' }
+  { title: 'Write and Publish', body: 'Turn your ideas into polished blog posts with a focused editor for headings, images, links, lists, and more.', icon: 'fa-solid fa-pen-to-square', color: 'text-blue-600' },
+  { title: 'Organize Your Stories', body: 'Use categories and tags to keep articles easy to browse and help readers discover related posts.', icon: 'fa-solid fa-folder-open', color: 'text-emerald-600' },
+  { title: 'Build Your Voice', body: 'Create a consistent publishing space for your thoughts, experiences, knowledge, and creative work.', icon: 'fa-solid fa-microphone-lines', color: 'text-purple-600' },
+  { title: 'Save Drafts', body: 'Work at your own pace and keep unfinished ideas safe until they are ready to share.', icon: 'fa-solid fa-file-pen', color: 'text-amber-500' },
+  { title: 'Reach Your Readers', body: 'Present every post in a clean single-blog view designed for comfortable reading and sharing.', icon: 'fa-solid fa-book-open-reader', color: 'text-teal-600' },
+  { title: 'Grow Your Archive', body: 'Build a lasting collection of published stories that readers can revisit anytime.', icon: 'fa-solid fa-layer-group', color: 'text-rose-500' }
 ];
 
 const gallery = [
-  { src: '/images/gallery-image-1.png', category: 'web' },
-  { src: '/images/gallery-image-2.png', category: 'web' },
-  { src: '/images/gallery-image-3.png', category: 'app' },
-  { src: '/images/gallery-image-4.png', category: 'app' },
-  { src: '/images/gallery-image-5.png', category: 'web' },
-  { src: '/images/gallery-image-6.png', category: 'web' },
-  { src: '/images/gallery-image-7.png', category: 'web' },
-  { src: '/images/gallery-image-8.png', category: 'web' },
-  { src: '/images/gallery-image.png', category: 'card' }
+  { src: '/images/gallery-image-1.png', category: 'stories' },
+  { src: '/images/gallery-image-2.png', category: 'stories' },
+  { src: '/images/gallery-image-3.png', category: 'ideas' },
+  { src: '/images/gallery-image-4.png', category: 'ideas' },
+  { src: '/images/gallery-image-5.png', category: 'guides' },
+  { src: '/images/gallery-image-6.png', category: 'guides' },
+  { src: '/images/gallery-image-7.png', category: 'stories' },
+  { src: '/images/gallery-image-8.png', category: 'ideas' },
+  { src: '/images/gallery-image.png', category: 'guides' }
 ];
 
 const clients = [
@@ -35,7 +35,7 @@ const clients = [
 
 const Home = () => {
   const [activeTab, setActiveTab] = useState('All');
-  const tabs = ['All', 'App', 'Card', 'Web'];
+  const tabs = ['All', 'Stories', 'Ideas', 'Guides'];
   const tabRefs = useRef([]);
   const [indicator, setIndicator] = useState({ left: 0, width: 0 });
 
@@ -87,11 +87,14 @@ const Home = () => {
               <div className="w-full max-w-5xl transform translate-y-28">
                 <div className="w-full border-t-4 border-[#22C55E] bg-black/30 rounded-md p-8 shadow-lg transform transition-transform duration-300 hover:scale-105 cursor-pointer">
                   <div className="max-w-[85%]">
-                    <h2 className="text-2xl font-semibold text-white">Professional Business Solutions</h2>
-                    <p className="mt-6 text-sm text-slate-200">Empower your organization with our comprehensive suite of business services designed to enhance productivity, streamline operations, and achieve sustainable growth. We partner with leading companies to deliver innovative solutions that transform challenges into opportunities.</p>
+                    <h2 className="text-2xl font-semibold text-white">A Home for Your Stories</h2>
+                    <p className="mt-6 text-sm text-slate-200">Write, organize, and publish thoughtful blog posts in one welcoming space. Shape your ideas with a flexible editor, save drafts while you work, and share finished stories with your readers.</p>
                   </div>
                   <div className="mt-6 flex justify-center">
-                    <Link to="/blog" className="inline-block rounded-md border-2 border-[#22C55E] px-4 py-2 text-sm font-medium text-white bg-transparent hover:bg-[#22C55E]/90">Read More</Link>
+                    <div className="flex flex-wrap justify-center gap-3">
+                      <Link to="/blog" className="inline-block rounded-md border-2 border-[#22C55E] px-4 py-2 text-sm font-medium text-white bg-transparent hover:bg-[#22C55E]/90">Explore Blog</Link>
+                      <Link to="/create-post" className="inline-block rounded-md bg-[#22C55E] px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600">Write a Post</Link>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -103,22 +106,22 @@ const Home = () => {
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
           <div>
-            <h3 className="text-3xl font-bold text-slate-900">Why Choose Our Services?</h3>
-            <p className="mt-4 text-slate-600">We deliver proven business solutions with a track record of success across multiple industries and market segments.</p>
+            <h3 className="text-3xl font-bold text-slate-900">Everything You Need to Publish</h3>
+            <p className="mt-4 text-slate-600">From your first draft to a growing archive, the platform gives you a simple place to create and share meaningful writing.</p>
           </div>
           <div>
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <svg className="h-5 w-5 text-[#22C55E] mt-1" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414L8.414 15l-4.121-4.121a1 1 0 011.414-1.414L8.414 12.172l7.879-7.879a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
-                <span className="text-slate-700">Experienced professionals with deep industry expertise and proven track records.</span>
+                <span className="text-slate-700">A rich editor for clear, expressive, well-structured posts.</span>
               </li>
               <li className="flex items-start gap-3">
                 <svg className="h-5 w-5 text-[#22C55E] mt-1" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414L8.414 15l-4.121-4.121a1 1 0 011.414-1.414L8.414 12.172l7.879-7.879a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
-                <span className="text-slate-700">Customized solutions tailored to your specific business needs and organizational goals.</span>
+                <span className="text-slate-700">Categories, tags, drafts, and media tools to keep your blog organized.</span>
               </li>
               <li className="flex items-start gap-3">
                 <svg className="h-5 w-5 text-[#22C55E] mt-1" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414L8.414 15l-4.121-4.121a1 1 0 011.414-1.414L8.414 12.172l7.879-7.879a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
-                <span className="text-slate-700">Dedicated support and continuous partnership throughout your business journey.</span>
+                <span className="text-slate-700">A readable blog experience that puts your stories first.</span>
               </li>
             </ul>
           </div>
@@ -184,7 +187,7 @@ const Home = () => {
       {/* Clients logos */}
       <section className="bg-white py-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <h3 className="text-center text-slate-700 font-semibold">Clients</h3>
+          <h3 className="text-center text-slate-700 font-semibold">Explore Visual Stories</h3>
             <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-6 items-center">
             {clients.map((c, i) => (
               <div key={i} className="flex items-center justify-center p-4">

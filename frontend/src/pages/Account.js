@@ -4,8 +4,31 @@ import PageHeader from '../components/page-header';
 import AuthContext from '../context/auth-context';
 import { updateProfile as updateProfileRequest, requestPasswordChange } from '../services/api';
 
+const firstRichTextToPlainText = (html) => {
+  const container = document.createElement('div');
+  container.innerHTML = html || '';
+  for (const node of container.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+      return node.textContent.replace(/\s+/g, ' ').trim();
+    }
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const element = node.matches('p, h1, h2, h3, h4, h5, h6, blockquote, li')
+        ? node
+        : node.querySelector('p, h1, h2, h3, h4, h5, h6, blockquote, li');
+      const text = element?.textContent || (node.tagName !== 'BR' ? node.textContent : '');
+      if (text?.trim()) return text.replace(/\s+/g, ' ').trim();
+    }
+  }
+  return (container.textContent || '').replace(/\s+/g, ' ').trim();
+};
+
+const firstTwoSentences = (text) => {
+  const sentences = String(text || '').match(/[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g) || [];
+  return sentences.slice(0, 2).join(' ').trim();
+};
+
 const getPostExcerpt = (post) => {
-  if (post.description || post.excerpt) return post.description || post.excerpt;
+  if (post.description || post.excerpt) return firstTwoSentences(post.description || post.excerpt);
   if (typeof post.content !== 'string') return 'No description available';
 
   try {
@@ -14,16 +37,16 @@ const getPostExcerpt = (post) => {
       const firstBlock = parsed.blocks.find((block) => block.type === 'paragraph' && block.data?.text)
         || parsed.blocks.find((block) => block.data?.text || block.data?.caption);
       const text = firstBlock
-        ? (firstBlock.data?.text || firstBlock.data?.caption || '').replace(/\s+/g, ' ').trim()
+        ? firstRichTextToPlainText(firstBlock.data?.text || firstBlock.data?.caption || '')
         : '';
-      return text ? text.substring(0, 150) : 'No description available';
+      return text ? firstTwoSentences(text) : 'No description available';
     }
   } catch (error) {
     // Continue with the legacy HTML excerpt below.
   }
 
-  const text = post.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-  return text ? text.substring(0, 150) : 'No description available';
+  const text = firstRichTextToPlainText(post.content);
+  return text ? firstTwoSentences(text) : 'No description available';
 };
 
 const ProfileField = ({ label, name, value, type = 'text', onChange }) => (
@@ -219,7 +242,12 @@ const Account = () => {
     }
   };
 
-  const posts = user.posts || [];
+  const draftKey = `testsite-drafts-${String(user.email || user.username || 'anonymous').toLowerCase()}`;
+  const drafts = JSON.parse(localStorage.getItem(draftKey) || '[]');
+  const posts = [
+    ...(user.posts || []),
+    ...(Array.isArray(drafts) ? drafts.filter((draft) => !(user.posts || []).some((post) => String(post.id) === String(draft.id))) : [])
+  ];
 
   return (
     <>
@@ -497,7 +525,10 @@ const Account = () => {
                   <div key={post.id} className="rounded-3xl bg-white border border-slate-200 overflow-hidden shadow-md">
                     {/* Post Title */}
                     <div className="p-5 pb-3">
-                      <p className="font-semibold text-slate-900 text-base">{post.title}</p>
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="font-semibold text-slate-900 text-base">{post.title}</p>
+                        {post.status === 'draft' && <span className="shrink-0 border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700">Draft</span>}
+                      </div>
                     </div>
 
                     {/* Post Date */}
@@ -524,10 +555,10 @@ const Account = () => {
                     {/* Read Story Link */}
                     <div className="mt-4 px-5 pb-5">
                       <Link
-                        to={`/blog/${post.id}`}
+                        to={post.status === 'draft' ? `/edit-post/${post.id}` : `/blog/${post.id}`}
                         className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-600 hover:text-emerald-700"
                       >
-                        Read story
+                        {post.status === 'draft' ? 'Edit draft' : 'Read story'}
                         <i className="fas fa-arrow-right text-xs"></i>
                       </Link>
                     </div>

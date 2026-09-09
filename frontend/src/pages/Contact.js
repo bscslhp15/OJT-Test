@@ -26,7 +26,7 @@ const Contact = () => {
   const handleChange = (event) => {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
   };
-
+  
   const handleSubmit = async (event) => {
     event.preventDefault();
     setStatus({ type: '', message: '' });
