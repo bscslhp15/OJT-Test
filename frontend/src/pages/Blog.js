@@ -1,7 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { useContext, useState } from 'react';
 import PageHeader from '../components/page-header';
-import AuthContext from '../context/auth-context';
+import AuthContext, { getDeletedPostIds } from '../context/auth-context';
 
 const firstRichTextToPlainText = (html) => {
   const container = document.createElement('div');
@@ -66,8 +66,11 @@ const Blog = () => {
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('search') || '');
   const [currentPage, setCurrentPage] = useState(1);
   const postsPerPage = 10;
-  const globalPosts = JSON.parse(localStorage.getItem('testsite-posts') || '[]');
-  const userPosts = Array.isArray(user?.posts) ? user.posts : [];
+  const deletedPostIds = getDeletedPostIds();
+  const globalPosts = JSON.parse(localStorage.getItem('testsite-posts') || '[]')
+    .filter((post) => !deletedPostIds.has(String(post.id)));
+  const userPosts = (Array.isArray(user?.posts) ? user.posts : [])
+    .filter((post) => !deletedPostIds.has(String(post.id)));
   
   const enrichPost = (post) => {
     if (post.author && post.author.trim()) return post;

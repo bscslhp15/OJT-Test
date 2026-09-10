@@ -1,7 +1,7 @@
 import { useContext, useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import PageHeader from '../components/page-header';
-import AuthContext from '../context/auth-context';
+import AuthContext, { getDeletedPostIds } from '../context/auth-context';
 import { updateProfile as updateProfileRequest, requestPasswordChange } from '../services/api';
 
 const firstRichTextToPlainText = (html) => {
@@ -243,9 +243,11 @@ const Account = () => {
   };
 
   const draftKey = `testsite-drafts-${String(user.email || user.username || 'anonymous').toLowerCase()}`;
-  const drafts = JSON.parse(localStorage.getItem(draftKey) || '[]');
+  const deletedPostIds = getDeletedPostIds();
+  const drafts = JSON.parse(localStorage.getItem(draftKey) || '[]')
+    .filter((draft) => !deletedPostIds.has(String(draft.id)));
   const posts = [
-    ...(user.posts || []),
+    ...(user.posts || []).filter((post) => !deletedPostIds.has(String(post.id))),
     ...(Array.isArray(drafts) ? drafts.filter((draft) => !(user.posts || []).some((post) => String(post.id) === String(draft.id))) : [])
   ];
 
