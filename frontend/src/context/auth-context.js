@@ -47,38 +47,23 @@ const setStorageItemSafely = (key, value) => {
   }
 };
 
+const clearPersistedAuth = () => {
+  localStorage.removeItem('testsite-user');
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (key && key.startsWith('testsite-user-persist-')) {
+      localStorage.removeItem(key);
+    }
+  }
+};
+
 export const AuthProvider = ({ children }) => {
   const STORAGE_KEY = 'testsite-user';
   const getPersistedUserKey = (account) => account?.email
     ? `testsite-user-persist-${account.email.toLowerCase()}`
     : null;
 
-  const [user, setUser] = useState(() => {
-    try {
-      const storedUser = localStorage.getItem(STORAGE_KEY);
-      if (!storedUser) return null;
-
-      const parsedUser = JSON.parse(storedUser);
-      if (!parsedUser) return null;
-
-      const email = String(parsedUser.email || '').toLowerCase();
-      const username = String(parsedUser.username || '').toLowerCase();
-      const deletedPostIds = getDeletedPostIds();
-      const savedPosts = JSON.parse(localStorage.getItem('testsite-posts') || '[]');
-      const posts = Array.isArray(savedPosts)
-        ? savedPosts.filter((post) => {
-            const authorId = String(post.authorId || '').toLowerCase();
-            return !deletedPostIds.has(String(post.id))
-              && ((email && authorId === email) || (username && authorId === username));
-          })
-        : [];
-
-      return { ...parsedUser, posts };
-    } catch (error) {
-      localStorage.removeItem(STORAGE_KEY);
-      return null;
-    }
-  });
+  const [user, setUser] = useState(null);
 
   const mergeStoredUser = (incomingUser) => {
     if (!incomingUser) return incomingUser;
@@ -169,7 +154,7 @@ export const AuthProvider = ({ children }) => {
         setStorageItemSafely(persistedUserKey, JSON.stringify(lightweightUser));
       }
     } else {
-      localStorage.removeItem(STORAGE_KEY);
+      clearPersistedAuth();
     }
   }, [user]);
 
@@ -181,7 +166,10 @@ export const AuthProvider = ({ children }) => {
     setUser(authenticatedUser);
     return authenticatedUser;
   };
-  const logout = () => setUser(null);
+  const logout = () => {
+    setUser(null);
+    clearPersistedAuth();
+  };
   const updateProfile = (updates) => setUser((prev) => {
     if (!prev) return prev;
 

@@ -166,7 +166,7 @@ const Blog = () => {
                   </div>
                   <p className="mt-4 line-clamp-2 text-slate-600">{getPostExcerpt(post)}</p>
                   <div className="mt-6 flex items-center justify-end gap-4">
-                    <Link to={`/blog/${post.id}`} className="rounded-full bg-[#22C55E] px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+                    <Link to={`/blog/${post.id}`} className="rounded-full bg-[#22C55E] px-5 py-2 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#1fae58]">
                       Read More
                     </Link>
                   </div>

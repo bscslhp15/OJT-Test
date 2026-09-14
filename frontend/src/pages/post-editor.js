@@ -1574,7 +1574,7 @@ const PostEditor = () => {
                 </div>
                 <div className="flex justify-end border-t border-slate-200 px-3 py-3">
                   {isEdit && <button type="button" onClick={handleMoveToTrash} className="mr-auto text-xs text-[#22C55E] underline hover:text-emerald-700">Move to Trash</button>}
-                  <button type="button" onClick={handleSubmit} className="bg-[#22C55E] px-5 py-2 text-xs font-semibold text-white hover:bg-emerald-700">{isEdit ? 'Update' : 'Publish'}</button>
+                  <button type="button" onClick={handleSubmit} className="bg-[#22C55E] px-5 py-2 text-xs font-semibold text-white transition-colors duration-200 hover:bg-[#1fae58]">{isEdit ? 'Update' : 'Publish'}</button>
                 </div>
                 </>}
               </div>

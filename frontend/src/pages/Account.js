@@ -265,7 +265,7 @@ const Account = () => {
               </div>
               <button
                 onClick={() => setIsEditing(!isEditing)}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#22C55E] text-white hover:bg-emerald-600"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#22C55E] text-white transition-colors duration-200 hover:bg-[#1fae58]"
                 type="button"
                 aria-label={isEditing ? 'Cancel editing profile' : 'Edit profile'}
                 title={isEditing ? 'Cancel editing' : 'Edit profile'}
@@ -292,7 +292,7 @@ const Account = () => {
                     <button
                       type="button"
                       onClick={() => photoInputRef.current?.click()}
-                      className="absolute -bottom-2 right-0 rounded-full bg-[#22C55E] px-3 py-2 text-xs font-semibold text-white shadow-md hover:bg-emerald-600"
+                      className="absolute -bottom-2 right-0 rounded-full bg-[#22C55E] px-3 py-2 text-xs font-semibold text-white shadow-md transition-colors duration-200 hover:bg-[#1fae58]"
                     >
                       Upload
                     </button>
@@ -346,7 +346,7 @@ const Account = () => {
                       <button
                         type="button"
                         onClick={() => setShowPasswordForm(true)}
-                        className="rounded-xl bg-[#22C55E] px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-600"
+                        className="rounded-xl bg-[#22C55E] px-5 py-3 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#1fae58]"
                       >
                         Change Password
                       </button>
@@ -395,7 +395,7 @@ const Account = () => {
                       <button
                         type="button"
                         onClick={handlePasswordChangeRequest}
-                        className="w-full rounded-xl bg-[#22C55E] px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-600"
+                        className="w-full rounded-xl bg-[#22C55E] px-4 py-3 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#1fae58]"
                       >
                         Change Password
                       </button>
@@ -499,7 +499,7 @@ const Account = () => {
                 <button
                   onClick={handleSave}
                   type="button"
-                  className="mt-8 rounded-xl bg-[#22C55E] px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-600"
+                  className="mt-8 rounded-xl bg-[#22C55E] px-6 py-3 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#1fae58]"
                 >
                   Save Profile
                 </button>
@@ -516,7 +516,7 @@ const Account = () => {
                   <p className="mt-1 text-sm text-slate-500">Manage your posts.</p>
                 </div>
               </div>
-              <Link to="/create-post" className="mt-4 block rounded-xl bg-[#22C55E] px-5 py-3 text-center text-sm font-semibold text-white hover:bg-emerald-600">
+              <Link to="/create-post" className="mt-4 block rounded-xl bg-[#22C55E] px-5 py-3 text-center text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#1fae58]">
                 Create Post
               </Link>
               <div className="mt-6 space-y-4">

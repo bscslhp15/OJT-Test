@@ -98,7 +98,7 @@ const Pricing = () => {
               </div>
 
               <div className="mt-6">
-                <button className={`w-full rounded-full py-3 text-sm font-semibold text-white transition ${plan.highlight ? 'bg-[#22C55E] hover:bg-emerald-700' : 'bg-[#22C55E] hover:bg-emerald-700'}`}>
+                <button className="w-full rounded-full bg-[#22C55E] py-3 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#1fae58]">
                   {plan.buttonLabel}
                 </button>
               </div>
