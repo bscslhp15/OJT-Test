@@ -43,6 +43,7 @@ function App() {
             <Route path="create-post" element={<PostEditor />} />
             <Route path="edit-post/:id" element={<PostEditor />} />
             <Route path="account" element={<Account />} />
+            <Route path=":username" element={<Account />} />
           </Route>
         </Routes>
       </BrowserRouter>

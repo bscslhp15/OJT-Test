@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import PageHeader from '../components/page-header';
 import { loginUser } from '../services/api';
 import AuthContext from '../context/auth-context';
+import { getAccountUrl } from '../services/account-url';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -21,7 +22,7 @@ const Login = () => {
       const response = await loginUser(form);
       const authenticatedUser = response.data?.user || response.data;
       login(authenticatedUser);
-      navigate('/account');
+      navigate(getAccountUrl(authenticatedUser));
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Login failed.');
     }

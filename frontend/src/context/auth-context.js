@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect } from 'react';
+import { createContext, useState, useEffect, useRef } from 'react';
 
 const AuthContext = createContext();
 const DELETED_POSTS_KEY = 'testsite-deleted-post-ids';
@@ -63,7 +63,14 @@ export const AuthProvider = ({ children }) => {
     ? `testsite-user-persist-${account.email.toLowerCase()}`
     : null;
 
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    } catch (error) {
+      return null;
+    }
+  });
+  const hasHydratedUser = useRef(false);
 
   const mergeStoredUser = (incomingUser) => {
     if (!incomingUser) return incomingUser;
@@ -145,6 +152,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
+    if (!hasHydratedUser.current) {
+      hasHydratedUser.current = true;
+      if (user) {
+        setUser(mergeStoredUser(user));
+        return;
+      }
+    }
+
     if (user) {
       const lightweightUser = { ...user };
       delete lightweightUser.posts;

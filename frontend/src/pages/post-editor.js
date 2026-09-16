@@ -2,6 +2,8 @@ import { useState, useEffect, useContext, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../components/page-header';
 import AuthContext from '../context/auth-context';
+import { createPostSlug } from '../services/post-url';
+import { getAccountUrl } from '../services/account-url';
 
 const defaultCategories = ['Uncategorized'];
 const textColors = ['#000000', '#4b5563', '#991b1b', '#b45309', '#166534', '#155e75', '#1d4ed8', '#581c87', '#be123c', '#dc2626', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#a855f7', '#ec4899', '#f8fafc'];
@@ -135,11 +137,21 @@ const combineBlocksIntoEditorContent = (parsedBlocks) => parsedBlocks.map((block
   return block.data.text || '';
 }).filter(Boolean).join('<p><br></p>');
 
+const formatPublishDate = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  const formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const formattedTime = date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${formattedDate} at ${formattedTime}`;
+};
+
 const PostEditor = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, updateProfile } = useContext(AuthContext);
+  const { user, updateProfile, deletePost } = useContext(AuthContext);
   const isEdit = Boolean(id);
+  const [editingPostId, setEditingPostId] = useState(null);
   const [form, setForm] = useState({
     title: '',
     slug: '',
@@ -150,6 +162,11 @@ const PostEditor = () => {
   });
   const [isDirty, setIsDirty] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showTrashConfirm, setShowTrashConfirm] = useState(false);
+  const [showPublishSchedule, setShowPublishSchedule] = useState(false);
+  const [publishMode, setPublishMode] = useState('immediate');
+  const [publishAt, setPublishAt] = useState('');
+  const [publishedAt, setPublishedAt] = useState('');
   const [pendingNavigation, setPendingNavigation] = useState(null);
   const [pendingAction, setPendingAction] = useState(null);
   const [blocks, setBlocks] = useState([createBlock()]);
@@ -309,10 +326,11 @@ const PostEditor = () => {
     setCategoryList((current) => [...new Set([...current, ...savedCategories])]);
 
     if (isEdit) {
-      const existingPost = posts.find((post) => String(post.id) === String(id))
-        || drafts.find((draft) => String(draft.id) === String(id));
+      const existingPost = posts.find((post) => String(post.id) === String(id) || createPostSlug(post.title) === id)
+        || drafts.find((draft) => String(draft.id) === String(id) || createPostSlug(draft.title) === id);
 
       if (existingPost) {
+        setEditingPostId(existingPost.id);
         const parsedBlocks = parseContentBlocks(existingPost.content || '');
         setForm({
           title: existingPost.title || '',
@@ -322,6 +340,9 @@ const PostEditor = () => {
           image: existingPost.featuredImage || existingPost.image || null,
           content: existingPost.content || ''
         });
+        setPublishMode(existingPost.publishAt ? 'scheduled' : 'immediate');
+        setPublishAt(existingPost.publishAt || '');
+        setPublishedAt(existingPost.publishedAt || existingPost.date || '');
         setTagInput('');
         setBlocks([{ ...createBlock(), data: { text: combineBlocksIntoEditorContent(parsedBlocks) } }]);
         return;
@@ -336,6 +357,10 @@ const PostEditor = () => {
       image: null,
       content: ''
     });
+    setEditingPostId(null);
+    setPublishMode('immediate');
+    setPublishAt('');
+    setPublishedAt('');
     setTagInput('');
     setBlocks([createBlock()]);
   }, [id, isEdit, user]);
@@ -375,19 +400,19 @@ const PostEditor = () => {
 
       if (targetUrl.origin !== currentUrl.origin) {
         event.preventDefault();
-        handleLeave('/account');
+        handleLeave(getAccountUrl(user));
         return;
       }
 
       if (targetUrl.pathname !== currentUrl.pathname) {
         event.preventDefault();
-        handleLeave('/account');
+        handleLeave(getAccountUrl(user));
       }
     };
 
     const handlePopState = () => {
       if (isDirty) {
-        setPendingNavigation('/account');
+        setPendingNavigation(getAccountUrl(user));
         setPendingAction('save');
         setShowConfirm(true);
       }
@@ -612,6 +637,8 @@ const PostEditor = () => {
         selectedBlock.style.marginLeft = nextIndent ? `${nextIndent}px` : '';
       }
     } else if (command === 'insertReadMore') {
+      const hasReadMoreTag = Object.values(editorRefs.current).some((currentEditor) => currentEditor?.querySelector('[data-read-more="true"]'));
+      if (hasReadMoreTag) return;
       document.execCommand('insertHTML', false, '<div data-read-more="true" contenteditable="false"><span>MORE</span></div><p><br></p>');
       const paragraphs = editor.querySelectorAll('p');
       placeCaretAtEnd(paragraphs[paragraphs.length - 1] || editor);
@@ -1214,8 +1241,9 @@ const PostEditor = () => {
     reader.readAsDataURL(file);
   };
 
-  const savePost = (redirectTarget = '/account', status = 'published') => {
+  const savePost = (redirectTarget = getAccountUrl(user), status = 'published') => {
     try {
+      const postId = editingPostId || id;
       const currentPosts = Array.isArray(user?.posts) ? user.posts : [];
       const allPosts = JSON.parse(localStorage.getItem('testsite-posts') || '[]');
       const normalizedTags = form.tags
@@ -1241,46 +1269,51 @@ const PostEditor = () => {
         authorBio: user?.bio || '',
         authorSocial: user?.social || {}
       };
+      const scheduledDate = publishMode === 'scheduled' && publishAt ? new Date(publishAt) : null;
+      const isScheduled = status === 'published' && scheduledDate && !Number.isNaN(scheduledDate.getTime()) && scheduledDate.getTime() > Date.now();
+      postData.status = isScheduled ? 'scheduled' : status;
+      postData.publishAt = isScheduled ? scheduledDate.toISOString() : null;
+      postData.publishedAt = isScheduled ? null : (publishedAt || new Date().toISOString());
 
       if (status === 'draft') {
         const draftKey = `testsite-drafts-${String(user?.email || user?.username || 'anonymous').toLowerCase()}`;
         const savedDrafts = JSON.parse(localStorage.getItem(draftKey) || '[]');
-        const draft = { id: isEdit && id ? Number(id) : Date.now(), ...postData, status: 'draft' };
+        const draft = { id: isEdit && postId ? Number(postId) : Date.now(), ...postData, status: 'draft' };
         const nextDrafts = [draft, ...savedDrafts.filter((savedDraft) => String(savedDraft.id) !== String(draft.id))];
         localStorage.setItem(draftKey, JSON.stringify(nextDrafts));
 
-        if (isEdit && id) {
-          localStorage.setItem('testsite-posts', JSON.stringify(allPosts.filter((post) => String(post.id) !== String(id))));
-          updateProfile({ posts: currentPosts.filter((post) => String(post.id) !== String(id)) });
+        if (isEdit && postId) {
+          localStorage.setItem('testsite-posts', JSON.stringify(allPosts.filter((post) => String(post.id) !== String(postId))));
+          updateProfile({ posts: currentPosts.filter((post) => String(post.id) !== String(postId)) });
         }
 
         navigate(redirectTarget);
         return;
       }
 
-      if (isEdit && id) {
+      if (isEdit && postId) {
         const updatedGlobalPosts = allPosts.map((post) =>
-          String(post.id) === String(id)
+          String(post.id) === String(postId)
             ? { ...post, ...postData, id: post.id }
             : post
         );
 
         const updatedUserPosts = currentPosts.map((post) =>
-          String(post.id) === String(id)
+          String(post.id) === String(postId)
             ? { ...post, ...postData, id: post.id }
             : post
         );
 
-        const savedPosts = updatedGlobalPosts.length > 0 ? updatedGlobalPosts : [{ id: Number(id), ...postData }];
+        const savedPosts = updatedGlobalPosts.length > 0 ? updatedGlobalPosts : [{ id: Number(postId), ...postData }];
 
         localStorage.setItem('testsite-posts', JSON.stringify(savedPosts));
 
         const draftKey = `testsite-drafts-${String(user?.email || user?.username || 'anonymous').toLowerCase()}`;
         const savedDrafts = JSON.parse(localStorage.getItem(draftKey) || '[]');
-        localStorage.setItem(draftKey, JSON.stringify(savedDrafts.filter((draft) => String(draft.id) !== String(id))));
+        localStorage.setItem(draftKey, JSON.stringify(savedDrafts.filter((draft) => String(draft.id) !== String(postId))));
 
         if (updateProfile) {
-          updateProfile({ posts: updatedUserPosts.length > 0 ? updatedUserPosts : [{ id: Number(id), ...postData }] });
+          updateProfile({ posts: updatedUserPosts.length > 0 ? updatedUserPosts : [{ id: Number(postId), ...postData }] });
         }
 
         navigate(redirectTarget);
@@ -1312,7 +1345,7 @@ const PostEditor = () => {
 
     if (isDirty) {
       setPendingAction(isEdit ? 'save' : 'publish');
-      setPendingNavigation('/account');
+      setPendingNavigation(getAccountUrl(user));
       setShowConfirm(true);
       return;
     }
@@ -1320,21 +1353,27 @@ const PostEditor = () => {
     setIsDirty(false);
     setShowConfirm(false);
     setPendingAction(null);
-    savePost('/account');
+    savePost(getAccountUrl(user));
   };
 
   const handleSaveDraft = () => {
     setIsDirty(false);
     setShowConfirm(false);
     setPendingAction(null);
-    savePost('/account', 'draft');
+    savePost(getAccountUrl(user), 'draft');
   };
 
   const handleMoveToTrash = () => {
-    const allPosts = JSON.parse(localStorage.getItem('testsite-posts') || '[]');
-    localStorage.setItem('testsite-posts', JSON.stringify(allPosts.filter((post) => String(post.id) !== String(id))));
-    updateProfile({ posts: (user.posts || []).filter((post) => String(post.id) !== String(id)) });
-    navigate('/account');
+    setShowTrashConfirm(true);
+  };
+
+  const confirmMoveToTrash = () => {
+    deletePost(editingPostId || id);
+    const draftKey = `testsite-drafts-${String(user?.email || user?.username || 'anonymous').toLowerCase()}`;
+    const savedDrafts = JSON.parse(localStorage.getItem(draftKey) || '[]');
+    localStorage.setItem(draftKey, JSON.stringify(savedDrafts.filter((draft) => String(draft.id) !== String(editingPostId || id))));
+    setShowTrashConfirm(false);
+    navigate(getAccountUrl(user));
   };
 
   const handlePreview = () => {
@@ -1366,7 +1405,7 @@ const PostEditor = () => {
     previewWindow.document.close();
   };
 
-  const handleLeave = (target = '/account') => {
+  const handleLeave = (target = getAccountUrl(user)) => {
     if (isDirty) {
       setPendingNavigation(target);
       setPendingAction(isEdit ? 'save' : 'publish');
@@ -1382,7 +1421,7 @@ const PostEditor = () => {
       setShowConfirm(false);
       setPendingNavigation(null);
       setPendingAction(null);
-      navigate('/account');
+      navigate(getAccountUrl(user));
       return;
     }
 
@@ -1390,7 +1429,7 @@ const PostEditor = () => {
     setShowConfirm(false);
     setPendingNavigation(null);
     setPendingAction(null);
-    savePost('/account');
+    savePost(getAccountUrl(user));
   };
 
   const confirmPrimaryLabel = isEdit ? 'Save' : 'Publish';
@@ -1427,7 +1466,7 @@ const PostEditor = () => {
                 value={form.title}
                 onChange={handleChange}
                 placeholder="Add title"
-                className="w-full rounded-none border border-slate-400 bg-white px-2 py-1 text-xl leading-tight text-slate-900 placeholder-slate-500 outline-none transition hover:border-[#22C55E] focus:border-[#22C55E] focus:ring-1 focus:ring-[#22C55E]"
+                className="w-full rounded-3xl border border-slate-300 bg-white px-4 py-3 text-xl leading-tight text-slate-900 placeholder-slate-500 outline-none transition hover:border-[#22C55E] focus:border-[#22C55E] focus:ring-1 focus:ring-[#22C55E]"
               />
             </div>
 
@@ -1446,7 +1485,7 @@ const PostEditor = () => {
                       </div>
                     ) : (
                       <>
-                        <div data-color-dropdown className="sticky top-[10rem] z-[5] mb-3 border border-slate-300 bg-slate-50 transition hover:border-[#22C55E]">
+                        <div data-color-dropdown className="sticky top-[10rem] z-[5] mb-3 overflow-hidden rounded-3xl border border-slate-300 bg-slate-50 transition hover:border-[#22C55E]">
                           <div className="flex flex-wrap items-center gap-1 p-1">
                           <select
                             value={block.data.format || 'p'}
@@ -1511,7 +1550,7 @@ const PostEditor = () => {
                           onPaste={(event) => handleEditorPaste(block.id, event)}
                           onInput={(event) => handleEditorInput(block.id, event)}
                           data-placeholder={block.type === 'header' ? 'Write a subtitle...' : block.type === 'quote' ? 'Write a quotation...' : block.type === 'list' ? 'Write a list...' : 'Write your story...'}
-                          className={`post-editor-content block min-h-32 min-w-0 w-full max-w-full resize-y overflow-x-hidden overflow-y-auto break-words whitespace-pre-wrap border border-slate-200 bg-white p-3 text-left text-slate-900 outline-none transition hover:border-[#22C55E] focus:border-[#22C55E] focus:ring-1 focus:ring-[#22C55E] empty:before:text-slate-400 empty:before:content-[attr(data-placeholder)] ${block.type === 'quote' || block.data.format === 'blockquote' ? 'border-l-4 border-slate-700 pl-4 italic' : ''}`}
+                          className={`post-editor-content block min-h-32 min-w-0 w-full max-w-full resize-y overflow-x-hidden overflow-y-auto break-words whitespace-pre-wrap rounded-3xl border border-slate-200 bg-white p-3 text-left text-slate-900 outline-none transition hover:border-[#22C55E] focus:border-[#22C55E] focus:ring-1 focus:ring-[#22C55E] empty:before:text-slate-400 empty:before:content-[attr(data-placeholder)] ${block.type === 'quote' || block.data.format === 'blockquote' ? 'border-l-4 border-slate-700 pl-4 italic' : ''}`}
                           style={{ direction: 'ltr', unicodeBidi: 'plaintext', overflowWrap: 'anywhere' }}
                         />
                         {linkEditor.id === block.id && linkEditorRect && (
@@ -1559,9 +1598,10 @@ const PostEditor = () => {
 
           {/* Right column: sidebar */}
           <aside className="self-start lg:col-span-4">
-            <div className="sticky top-28 max-h-[calc(100vh-7rem)] space-y-5 overflow-y-auto pr-1">
-              <div className="border border-slate-300 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-300 px-3 py-2">
+            <div className="sticky top-28 pr-1">
+              <div className="overflow-hidden rounded-3xl border border-slate-300 bg-white p-3 shadow-sm">
+              <div className="mx-2 border-b border-slate-100 pb-3">
+                <div className="flex items-center justify-between px-3 py-2">
                   <h3 className="text-sm font-semibold text-slate-800">Publish</h3>
                   <button type="button" onClick={() => setCollapsedPanels((current) => ({ ...current, publish: !current.publish }))} className="flex h-6 w-6 items-center justify-center text-slate-400 hover:text-[#22C55E]" aria-label={`${collapsedPanels.publish ? 'Open' : 'Close'} Publish panel`}>
                     <i className={`fa-solid fa-chevron-${collapsedPanels.publish ? 'down' : 'up'} text-xs`} aria-hidden="true" />
@@ -1572,15 +1612,50 @@ const PostEditor = () => {
                   <button type="button" onClick={handleSaveDraft} className="border border-[#22C55E] px-4 py-2 text-xs text-[#22C55E] hover:bg-emerald-50">Save Draft</button>
                   <button type="button" onClick={handlePreview} className="border border-[#22C55E] px-4 py-2 text-xs text-[#22C55E] hover:bg-emerald-50">Preview</button>
                 </div>
-                <div className="flex justify-end border-t border-slate-200 px-3 py-3">
+                <div className="px-3 pb-3">
+                  <div className="flex items-center gap-1 text-xs text-slate-600">
+                    {publishMode === 'scheduled' && publishAt ? (
+                      <><span>Publish on:</span> <strong>{formatPublishDate(publishAt)}</strong></>
+                    ) : isEdit && publishedAt ? (
+                      <><span>Published on:</span> <strong>{formatPublishDate(publishedAt)}</strong></>
+                    ) : (
+                      <strong>Publish immediately</strong>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowPublishSchedule((current) => !current)}
+                      className="text-[#22C55E] underline hover:text-emerald-700"
+                    >
+                      {showPublishSchedule ? 'Done' : 'Edit'}
+                    </button>
+                  </div>
+                  {showPublishSchedule && (
+                    <div className="mt-2 rounded-xl bg-slate-50 p-3">
+                      <label className="block text-xs font-semibold text-slate-600" htmlFor="publish-at">Publish date and time</label>
+                      <input
+                        id="publish-at"
+                        type="datetime-local"
+                        value={publishAt}
+                        min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                        onChange={(event) => {
+                          setPublishAt(event.target.value);
+                          setPublishMode(event.target.value ? 'scheduled' : 'immediate');
+                          setIsDirty(true);
+                        }}
+                        className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:border-[#22C55E]"
+                      />
+                      {publishMode === 'scheduled' && <button type="button" onClick={() => { setPublishAt(''); setPublishMode('immediate'); }} className="mt-2 text-xs text-slate-500 underline hover:text-slate-700">Publish immediately instead</button>}
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-end border-t border-slate-100 px-3 py-3">
                   {isEdit && <button type="button" onClick={handleMoveToTrash} className="mr-auto text-xs text-[#22C55E] underline hover:text-emerald-700">Move to Trash</button>}
                   <button type="button" onClick={handleSubmit} className="bg-[#22C55E] px-5 py-2 text-xs font-semibold text-white transition-colors duration-200 hover:bg-[#1fae58]">{isEdit ? 'Update' : 'Publish'}</button>
                 </div>
                 </>}
               </div>
-
-              <div className="border border-slate-300 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-300 px-3 py-2">
+              <div className="mx-2 border-b border-slate-100 py-3">
+                <div className="flex items-center justify-between px-3 py-2">
                   <h3 className="text-sm font-semibold text-slate-800">Categories</h3>
                   <button type="button" onClick={() => setCollapsedPanels((current) => ({ ...current, categories: !current.categories }))} className="flex h-6 w-6 items-center justify-center text-slate-400 hover:text-[#22C55E]" aria-label={`${collapsedPanels.categories ? 'Open' : 'Close'} Categories panel`}>
                     <i className={`fa-solid fa-chevron-${collapsedPanels.categories ? 'down' : 'up'} text-xs`} aria-hidden="true" />
@@ -1614,9 +1689,8 @@ const PostEditor = () => {
                 </div>
                 </>}
               </div>
-
-              <div className="border border-slate-300 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-300 px-3 py-2">
+              <div className="mx-2 border-b border-slate-100 py-3">
+                <div className="flex items-center justify-between px-3 py-2">
                   <h3 className="text-sm font-semibold text-slate-800">Tags</h3>
                   <button type="button" onClick={() => setCollapsedPanels((current) => ({ ...current, tags: !current.tags }))} className="flex h-6 w-6 items-center justify-center text-slate-400 hover:text-[#22C55E]" aria-label={`${collapsedPanels.tags ? 'Open' : 'Close'} Tags panel`}>
                     <i className={`fa-solid fa-chevron-${collapsedPanels.tags ? 'down' : 'up'} text-xs`} aria-hidden="true" />
@@ -1645,9 +1719,8 @@ const PostEditor = () => {
                 <div className="px-3 pb-3 text-xs text-slate-500">Separate tags with commas</div>
                 </>}
               </div>
-
-              <div className="border border-slate-300 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-300 px-3 py-2">
+              <div className="mx-2 pt-3">
+                <div className="flex items-center justify-between px-3 py-2">
                   <h3 className="text-sm font-semibold text-slate-800">Featured Image</h3>
                   <button type="button" onClick={() => setCollapsedPanels((current) => ({ ...current, featuredImage: !current.featuredImage }))} className="flex h-6 w-6 items-center justify-center text-slate-400 hover:text-[#22C55E]" aria-label={`${collapsedPanels.featuredImage ? 'Open' : 'Close'} Featured Image panel`}>
                     <i className={`fa-solid fa-chevron-${collapsedPanels.featuredImage ? 'down' : 'up'} text-xs`} aria-hidden="true" />
@@ -1668,6 +1741,7 @@ const PostEditor = () => {
                   )}
                 </div>
                 </>}
+              </div>
               </div>
             </div>
           </aside>
@@ -1768,6 +1842,23 @@ const PostEditor = () => {
               </button>
               <button onClick={() => confirmLeave('save')} className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700">
                 {confirmPrimaryLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTrashConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl">
+            <h3 className="text-xl font-semibold text-slate-900">Move post to trash?</h3>
+            <p className="mt-4 text-slate-600">This post will be deleted and removed from your blog.</p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => setShowTrashConfirm(false)} className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                Cancel
+              </button>
+              <button type="button" onClick={confirmMoveToTrash} className="rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white hover:bg-red-700">
+                Move to Trash
               </button>
             </div>
           </div>

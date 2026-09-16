@@ -2,6 +2,9 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useContext, useState } from 'react';
 import PageHeader from '../components/page-header';
 import AuthContext, { getDeletedPostIds } from '../context/auth-context';
+import { getPostUrl } from '../services/post-url';
+import { getPostAuthorUrl } from '../services/account-url';
+import { isPostVisible } from '../services/post-status';
 
 const firstRichTextToPlainText = (html) => {
   const container = document.createElement('div');
@@ -26,14 +29,24 @@ const firstTwoSentences = (text) => {
   return sentences.slice(0, 2).join(' ').trim();
 };
 
-const getPostExcerpt = (post) => {
-  if (post.description || post.excerpt) return firstTwoSentences(post.description || post.excerpt);
+const getReadMoreExcerpt = (html) => {
+  const markerMatch = String(html || '').match(/data-read-more\s*=\s*(['"])true\1/i);
+  if (!markerMatch) return null;
+  const markerIndex = markerMatch.index;
+  const beforeMarker = String(html).slice(0, markerIndex);
+  const container = document.createElement('div');
+  container.innerHTML = beforeMarker;
+  return (container.textContent || '').replace(/\s+/g, ' ').trim();
+};
 
+const getPostExcerpt = (post) => {
   if (typeof post.content !== 'string') return 'No description available';
 
   try {
     const parsed = JSON.parse(post.content);
     if (parsed && Array.isArray(parsed.blocks)) {
+      const contentBeforeReadMore = getReadMoreExcerpt(parsed.blocks.map((block) => block.data?.text || block.data?.caption || '').join('<p></p>'));
+      if (contentBeforeReadMore !== null) return contentBeforeReadMore || 'No description available';
       const firstBlock = parsed.blocks.find((block) => block.type === 'paragraph' && block.data?.text)
         || parsed.blocks.find((block) => block.data?.text || block.data?.caption);
       const text = firstBlock
@@ -45,6 +58,9 @@ const getPostExcerpt = (post) => {
     // Continue with the legacy HTML excerpt below.
   }
 
+  const contentBeforeReadMore = getReadMoreExcerpt(post.content);
+  if (contentBeforeReadMore !== null) return contentBeforeReadMore || 'No description available';
+  if (post.description || post.excerpt) return firstTwoSentences(post.description || post.excerpt);
   const text = firstRichTextToPlainText(post.content);
   return text ? firstTwoSentences(text) : 'No description available';
 };
@@ -68,9 +84,9 @@ const Blog = () => {
   const postsPerPage = 10;
   const deletedPostIds = getDeletedPostIds();
   const globalPosts = JSON.parse(localStorage.getItem('testsite-posts') || '[]')
-    .filter((post) => !deletedPostIds.has(String(post.id)));
+    .filter((post) => !deletedPostIds.has(String(post.id)) && isPostVisible(post));
   const userPosts = (Array.isArray(user?.posts) ? user.posts : [])
-    .filter((post) => !deletedPostIds.has(String(post.id)));
+    .filter((post) => !deletedPostIds.has(String(post.id)) && isPostVisible(post));
   
   const enrichPost = (post) => {
     if (post.author && post.author.trim()) return post;
@@ -153,20 +169,22 @@ const Blog = () => {
               <div className="rounded-3xl bg-white p-8 text-center text-slate-600 shadow-lg">No posts found for the selected filters.</div>
             )}
             {paginatedPosts.map((post) => (
-              <article key={post.id} className="overflow-hidden bg-white shadow-lg">
+              <article key={post.id} className="overflow-hidden rounded-3xl bg-white shadow-lg">
                 {(post.featuredImage || post.image) && (
-                  <img src={post.featuredImage || post.image} alt={post.title} className="h-80 w-full object-cover" />
+                  <Link to={getPostUrl(post)} className="block">
+                    <img src={post.featuredImage || post.image} alt={post.title} className="h-80 w-full object-cover transition duration-200 hover:brightness-95" />
+                  </Link>
                 )}
                 <div className="p-8">
-                  <h2 className="text-2xl font-semibold text-slate-900">{post.title}</h2>
+                  <h2 className="text-2xl font-semibold text-slate-900"><Link to={getPostUrl(post)} className="transition hover:text-emerald-600">{post.title}</Link></h2>
                   <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-600">
-                    <span><i className="fas fa-user mr-1"></i>{post.author || 'Author'}</span>
+                    <span><i className="fas fa-user mr-1"></i><Link to={getPostAuthorUrl(post)} className="hover:text-emerald-600">{post.author || 'Author'}</Link></span>
                     <span><i className="far fa-calendar mr-1"></i>{post.date}</span>
-                    <span><i className="far fa-comments mr-1"></i>{getCommentCount(post.id)} Comments</span>
+                    <Link to={`${getPostUrl(post)}#comments`} className="hover:text-emerald-600"><i className="far fa-comments mr-1"></i>{getCommentCount(post.id)} Comments</Link>
                   </div>
                   <p className="mt-4 line-clamp-2 text-slate-600">{getPostExcerpt(post)}</p>
                   <div className="mt-6 flex items-center justify-end gap-4">
-                    <Link to={`/blog/${post.id}`} className="rounded-full bg-[#22C55E] px-5 py-2 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#1fae58]">
+                    <Link to={getPostUrl(post)} className="rounded-full bg-[#22C55E] px-5 py-2 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#1fae58]">
                       Read More
                     </Link>
                   </div>
@@ -199,13 +217,13 @@ const Blog = () => {
             <div className="border-b border-slate-100 pb-6">
               <label htmlFor="search" className="sr-only">Search</label>
               <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <i className="fa-solid fa-magnifying-glass text-slate-400" aria-hidden="true" />
                 <input id="search" type="search" value={searchTerm} onChange={handleSearchChange} placeholder="Search by title or author" className="w-full bg-transparent text-sm text-slate-900 outline-none" />
+                <i className="fa-solid fa-magnifying-glass flex-shrink-0 text-slate-400" aria-hidden="true" />
               </div>
             </div>
 
             <div className="border-b border-slate-100 py-6">
-              <h3 className="text-lg font-semibold text-slate-900">Categories</h3>
+              <h3 className="text-sm font-semibold text-slate-900">Categories</h3>
               <ul className="mt-5 space-y-3 text-slate-600">
                 {categories.map(([category, count]) => (
                   <li key={category}>
@@ -225,10 +243,10 @@ const Blog = () => {
 
             {recentPosts.length > 0 && (
               <div className="border-b border-slate-100 py-6">
-                <h3 className="text-lg font-semibold text-slate-900">Recent Posts</h3>
+                <h3 className="text-sm font-semibold text-slate-900">Recent Posts</h3>
                 <div className="mt-5 space-y-4">
                   {recentPosts.map((post) => (
-                    <Link key={post.id} to={`/blog/${post.id}`} className="flex items-center gap-4 rounded-xl p-2 transition hover:bg-slate-50">
+                    <Link key={post.id} to={getPostUrl(post)} className="flex items-center gap-4 rounded-xl p-2 transition hover:bg-slate-50">
                       <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100">
                         {(post.featuredImage || post.image) ? (
                           <img src={post.featuredImage || post.image} alt={post.title} className="h-full w-full object-cover" />
@@ -250,7 +268,7 @@ const Blog = () => {
             )}
 
             <div className="pt-6">
-              <h3 className="text-lg font-semibold text-slate-900">Tags</h3>
+              <h3 className="text-sm font-semibold text-slate-900">Tags</h3>
               <div className="mt-5 flex flex-wrap gap-3">
                 {tags.map(([tag, count]) => (
                   <button

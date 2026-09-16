@@ -1,7 +1,9 @@
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useContext, useEffect, useState } from 'react';
 import PageHeader from '../components/page-header';
 import AuthContext from '../context/auth-context';
+import { createPostSlug, getEditPostUrl, getPostUrl } from '../services/post-url';
+import { getPostAuthorUrl } from '../services/account-url';
 
 const defaultProfile = '/images/default-profile.jpg';
 const legacyCategories = new Set(['General', 'Design', 'Development', 'Branding', 'Marketing']);
@@ -27,16 +29,14 @@ const normalizeImageCaptionLinks = (html) => {
 };
 
 const splitAtReadMore = (html) => {
-  const marker = '<div data-read-more="true"';
-  const markerStart = html.indexOf(marker);
-  if (markerStart === -1) return null;
-
-  const markerEnd = html.indexOf('</div>', markerStart);
-  if (markerEnd === -1) return null;
+  const markerMatch = String(html || '').match(/<div[^>]*data-read-more\s*=\s*(['"])true\1[^>]*>[\s\S]*?<\/div>/i);
+  if (!markerMatch) return null;
+  const markerStart = markerMatch.index;
+  const markerEnd = markerStart + markerMatch[0].length;
 
   return {
     before: html.slice(0, markerStart),
-    after: html.slice(markerEnd + '</div>'.length)
+    after: html.slice(markerEnd)
   };
 };
 
@@ -60,7 +60,6 @@ const renderBlock = (block, index, textOverride) => {
 };
 
 const ReadMoreContent = ({ content }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   let blocks = null;
 
@@ -104,7 +103,7 @@ const ReadMoreContent = ({ content }) => {
   }
 
   if (blocks) {
-    const markerIndex = blocks.findIndex((block) => (block.data?.text || '').includes('data-read-more="true"'));
+    const markerIndex = blocks.findIndex((block) => /data-read-more\s*=\s*(['"])true\1/i.test(block.data?.text || ''));
     if (markerIndex !== -1) {
       const markerBlock = blocks[markerIndex];
       const splitMarkerBlock = splitAtReadMore(markerBlock.data?.text || '');
@@ -115,13 +114,9 @@ const ReadMoreContent = ({ content }) => {
         <>
           {beforeBlocks.map((block, index) => renderBlock(block, index))}
           {splitMarkerBlock?.before && renderBlock(markerBlock, markerIndex, splitMarkerBlock.before)}
-          <div className="read-more-divider">
-            <button type="button" onClick={() => setIsExpanded((expanded) => !expanded)} className="read-more-button" aria-expanded={isExpanded}>
-              {isExpanded ? 'Read less' : 'Read more'}
-            </button>
-          </div>
-          {isExpanded && splitMarkerBlock?.after && renderBlock(markerBlock, `${markerIndex}-after`, splitMarkerBlock.after)}
-          {isExpanded && afterBlocks.map((block, index) => renderBlock(block, `${markerIndex + index + 1}`))}
+          <div className="read-more-divider" aria-hidden="true" />
+          {splitMarkerBlock?.after && renderBlock(markerBlock, `${markerIndex}-after`, splitMarkerBlock.after)}
+          {afterBlocks.map((block, index) => renderBlock(block, `${markerIndex + index + 1}`))}
         </>
       );
     }
@@ -154,12 +149,8 @@ const ReadMoreContent = ({ content }) => {
   return (
     <>
       <div className="post-editor-content" dangerouslySetInnerHTML={{ __html: splitContent.before }} />
-      <div className="read-more-divider">
-        <button type="button" onClick={() => setIsExpanded((expanded) => !expanded)} className="read-more-button" aria-expanded={isExpanded}>
-          {isExpanded ? 'Read less' : 'Read more'}
-        </button>
-      </div>
-      {isExpanded && <div className="post-editor-content" dangerouslySetInnerHTML={{ __html: splitContent.after }} />}
+      <div className="read-more-divider" aria-hidden="true" />
+      <div className="post-editor-content" dangerouslySetInnerHTML={{ __html: splitContent.after }} />
     </>
   );
 };
@@ -167,6 +158,7 @@ const ReadMoreContent = ({ content }) => {
 const SingleBlog = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, deletePost } = useContext(AuthContext);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [comments, setComments] = useState(() => JSON.parse(localStorage.getItem(`testsite-comments-${id}`) || '[]'));
@@ -200,7 +192,17 @@ const SingleBlog = () => {
   const globalPostsEnriched = globalPosts.map((post) => ({ ...enrichPost(post), category: normalizeCategory(post.category) }));
   const userPostsEnriched = userPosts.map((post) => ({ ...enrichPost(post), category: normalizeCategory(post.category) }));
   const allPosts = [...globalPostsEnriched, ...userPostsEnriched.filter((post) => !globalPostsEnriched.some((item) => String(item.id) === String(post.id)))];
-  const post = allPosts.find((p) => String(p.id) === String(id));
+  const post = allPosts.find((item) => String(item.id) === String(id) || createPostSlug(item.title) === id);
+
+  useEffect(() => {
+    if (!post?.id) return;
+    setComments(JSON.parse(localStorage.getItem(`testsite-comments-${post.id}`) || '[]'));
+  }, [post?.id]);
+
+  useEffect(() => {
+    if (location.hash !== '#comments' || !post) return;
+    document.getElementById('comments')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [location.hash, post]);
 
   const handleDeletePost = () => {
     setIsDeleteModalOpen(true);
@@ -323,7 +325,7 @@ const SingleBlog = () => {
     if (!newComment) return;
     const nextComments = [...comments, newComment];
     setComments(nextComments);
-    localStorage.setItem(`testsite-comments-${id}`, JSON.stringify(nextComments));
+    localStorage.setItem(`testsite-comments-${post.id}`, JSON.stringify(nextComments));
     setCommentEmail('');
     setCommentWebsite('');
     setCommentText('');
@@ -335,7 +337,7 @@ const SingleBlog = () => {
     if (!newReply) return;
     const nextComments = [...comments, newReply];
     setComments(nextComments);
-    localStorage.setItem(`testsite-comments-${id}`, JSON.stringify(nextComments));
+    localStorage.setItem(`testsite-comments-${post.id}`, JSON.stringify(nextComments));
     setReplyText('');
     setReplyTo(null);
   };
@@ -350,12 +352,19 @@ const SingleBlog = () => {
     return belongsToCurrentUser ? (currentProfilePhoto || defaultProfile) : (comment.avatar || defaultProfile);
   };
 
+  const getCommentProfileUrl = (comment) => getPostAuthorUrl({
+    authorId: comment.email,
+    author: comment.name
+  });
+
   const renderComment = (comment, isReply = false) => (
     <div key={comment.id} className={`flex gap-4 border-b border-slate-100 pb-5 last:border-0 ${isReply ? 'ml-10 pt-4' : ''}`}>
-      <img src={getCommentAvatar(comment)} alt="Comment author" className="h-12 w-12 flex-shrink-0 rounded-full object-cover" />
+      <Link to={getCommentProfileUrl(comment)} aria-label={`View ${comment.name || 'comment author'} profile`} className="flex-shrink-0 rounded-full transition hover:opacity-80">
+        <img src={getCommentAvatar(comment)} alt="Comment author" className="h-12 w-12 rounded-full object-cover" />
+      </Link>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <strong className="text-sm text-slate-900">{comment.name || 'Guests 00000000'}</strong>
+          <Link to={getCommentProfileUrl(comment)} className="text-sm font-semibold text-slate-900 transition hover:text-emerald-600">{comment.name || 'Guests 00000000'}</Link>
           <button type="button" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)} className="text-xs font-semibold text-slate-500 hover:text-emerald-600">Reply</button>
         </div>
         <div className="mt-1 text-xs text-slate-400">{comment.date}</div>
@@ -381,11 +390,11 @@ const SingleBlog = () => {
   return (
     <>
       <PageHeader
-        title="Blog Single"
+        title={post.title}
         breadcrumbs={[
           { label: 'Home', to: '/' },
           { label: 'Blog', to: '/blog' },
-          { label: 'Single Blog' }
+          { label: post.title }
         ]}
       />
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
@@ -398,15 +407,17 @@ const SingleBlog = () => {
           {isAuthor && (
             <div className="flex gap-3">
               <Link
-                to={`/edit-post/${post.id}`}
-                className="rounded-lg bg-[#22C55E] px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600"
+                to={getEditPostUrl(post)}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#22C55E] px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600"
               >
+                <i className="fas fa-pen" aria-hidden="true"></i>
                 Edit Post
               </Link>
               <button
                 onClick={handleDeletePost}
-                className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
               >
+                <i className="fas fa-trash" aria-hidden="true"></i>
                 Delete
               </button>
             </div>
@@ -416,30 +427,32 @@ const SingleBlog = () => {
         <div className="grid gap-8 lg:grid-cols-12">
           {/* Main column */}
           <main className="lg:col-span-8">
-            <div className="mb-6 overflow-hidden bg-white shadow">
+            <div className="mb-6 overflow-hidden rounded-3xl bg-white shadow">
               {(post.featuredImage || post.image) && (
                 <img src={post.featuredImage || post.image} alt={post.title} className="w-full object-cover" style={{ height: 440 }} />
               )}
               <div className="p-8">
                 {post.category && <div className="text-sm uppercase tracking-[0.3em] text-emerald-600">{post.category}</div>}
                 <h1 className="mt-3 text-3xl font-semibold text-slate-900">{post.title}</h1>
-                <div className="mt-3 text-sm text-slate-600">By {post.author || 'Author'}</div>
+                <div className="mt-3 text-sm text-slate-600">By <Link to={getPostAuthorUrl(post)} className="hover:text-emerald-600">{post.author || 'Author'}</Link></div>
                 <div className="mt-6 max-w-none text-slate-700 leading-7"><ReadMoreContent content={post.content} /></div>
               </div>
             </div>
 
             {/* Author box */}
-            <div className="mb-8 rounded-2xl bg-white p-6 shadow">
+            <div id="comments" className="mb-8 scroll-mt-28 rounded-2xl bg-white p-6 shadow">
               <div className="flex items-center gap-5">
-                {authorProfilePhoto ? (
-                  <img src={authorProfilePhoto} alt="Author profile" className="h-24 w-24 flex-shrink-0 rounded-full object-cover" />
-                ) : (
-                  <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-2xl font-semibold text-white">
-                    {(post.author || user?.firstName || user?.username || 'A')[0]}
-                  </div>
-                )}
+                <Link to={getPostAuthorUrl(post)} aria-label={`View ${post.author || 'author'} profile`} className="flex-shrink-0 rounded-full transition hover:opacity-80">
+                  {authorProfilePhoto ? (
+                    <img src={authorProfilePhoto} alt="Author profile" className="h-24 w-24 rounded-full object-cover" />
+                  ) : (
+                    <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-2xl font-semibold text-white">
+                      {(post.author || user?.firstName || user?.username || 'A')[0]}
+                    </div>
+                  )}
+                </Link>
                 <div className="min-w-0 flex-1">
-                  <div className="text-lg font-semibold text-slate-900">{post.author || 'Author'}</div>
+                  <Link to={getPostAuthorUrl(post)} className="text-lg font-semibold text-slate-900 transition hover:text-emerald-600">{post.author || 'Author'}</Link>
                   {socialLinks.length > 0 && (
                     <div className="mt-1 flex items-center gap-3 text-slate-500">
                       {socialLinks.map((link) => (
@@ -488,9 +501,8 @@ const SingleBlog = () => {
             <div className="border-b border-slate-100 pb-6">
               <label htmlFor="search" className="sr-only">Search</label>
               <form onSubmit={(event) => { event.preventDefault(); const query = event.currentTarget.elements.search.value.trim(); navigate(query ? `/blog?search=${encodeURIComponent(query)}` : '/blog'); }} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <i className="fa-solid fa-magnifying-glass text-slate-400" aria-hidden="true" />
                 <input id="search" name="search" type="search" placeholder="Search posts" className="w-full bg-transparent text-sm text-slate-900 outline-none" />
-                <button type="submit" aria-label="Search posts" className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-[#22C55E] text-white transition hover:bg-emerald-700">
+                <button type="submit" aria-label="Search posts" className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center text-slate-400 transition hover:text-[#22C55E]">
                   <i className="fa-solid fa-magnifying-glass text-xs" aria-hidden="true" />
                 </button>
               </form>
@@ -498,7 +510,7 @@ const SingleBlog = () => {
 
             {/* Categories */}
             <div className="border-b border-slate-100 py-6">
-              <h3 className="text-lg font-semibold text-slate-900">Categories</h3>
+              <h3 className="text-sm font-semibold text-slate-900">Categories</h3>
               <ul className="mt-5 space-y-3 text-slate-600">
                 {categories.map(([category, count]) => (
                   <li key={category}>
@@ -519,10 +531,10 @@ const SingleBlog = () => {
             {/* Recent Posts */}
             {recentPosts.length > 0 && (
               <div className="border-b border-slate-100 py-6">
-                <h3 className="text-lg font-semibold text-slate-900">Recent Posts</h3>
+                <h3 className="text-sm font-semibold text-slate-900">Recent Posts</h3>
                 <div className="mt-5 space-y-4">
                   {recentPosts.map((recentPost) => (
-                    <Link key={recentPost.id} to={`/blog/${recentPost.id}`} className="flex gap-4 rounded-lg hover:bg-slate-50 p-2 transition">
+                    <Link key={recentPost.id} to={getPostUrl(recentPost)} className="flex gap-4 rounded-lg hover:bg-slate-50 p-2 transition">
                       <div className="h-20 w-20 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100">
                         {(recentPost.featuredImage || recentPost.image) ? (
                           <img src={recentPost.featuredImage || recentPost.image} alt={recentPost.title} className="h-full w-full object-cover" />
@@ -545,7 +557,7 @@ const SingleBlog = () => {
             {/* Tags */}
             {allTags.length > 0 && (
               <div className="pt-6">
-                <h3 className="text-lg font-semibold text-slate-900">Tags</h3>
+                <h3 className="text-sm font-semibold text-slate-900">Tags</h3>
                 <div className="mt-5 flex flex-wrap gap-3">
                   {allTags.map((tag) => (
                     <button

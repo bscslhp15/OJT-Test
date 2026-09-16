@@ -2,6 +2,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useState, useContext, useRef, useEffect } from 'react';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import AuthContext from '../context/auth-context';
+import { getAccountUrl } from '../services/account-url';
 
 const navItems = [
   { label: 'Home', to: '/' },
@@ -53,11 +54,7 @@ const socialLinks = [
   {
     label: 'LinkedIn',
     href: '#',
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
-        <path d="M4.98 3.5A2.5 2.5 0 0 0 2.5 6v12A2.5 2.5 0 0 0 4.98 20.5h14.04A2.5 2.5 0 0 0 21.5 18V6a2.5 2.5 0 0 0-2.48-2.5H4.98zM8.34 17.75H5.75V10.5h2.59v7.25zM7.05 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm6.56 8.25h-2.59v-3.75c0-.95-.34-1.6-1.19-1.6-.65 0-1.03.44-1.2.87-.06.14-.08.34-.08.54v3.94H6.93V10.5h2.49v1.03c.33-.5.93-1.2 2.27-1.2 1.66 0 2.91 1.08 2.91 3.4v4.02z" />
-      </svg>
-    )
+    icon: <i className="fab fa-linkedin text-base" aria-hidden="true" />
   }
 ];
 
@@ -73,6 +70,10 @@ const Navbar = () => {
   const isAuthenticated = Boolean(user);
   const isUnconfirmed = isAuthenticated && !user.confirmed;
   const profilePhoto = user?.profile_photo || (user?.email ? localStorage.getItem(`testsite-profile-${user.email.toLowerCase()}`) : null);
+  const accountLabel = String(user?.username || user?.email?.split('@')[0] || 'account')
+    .replace(/\s+/g, '')
+    .toLowerCase();
+  const accountUrl = getAccountUrl(user);
 
   const getSocialUrl = (platform, value) => {
     if (!value) return '#';
@@ -228,9 +229,9 @@ const Navbar = () => {
                           </div>
                         </div>
                         <div className="my-3 h-px bg-slate-100" />
-                        <Link to="/account" onClick={() => setProfileOpen(false)} className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm text-slate-700 transition hover:bg-slate-100">
+                        <Link to={accountUrl} onClick={() => setProfileOpen(false)} className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm text-slate-700 transition hover:bg-slate-100">
                           <svg className="h-5 w-5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-3-3.87"/><path d="M4 21v-2a4 4 0 0 1 3-3.87"/><circle cx="12" cy="7" r="4"/></svg>
-                          My account
+                          {accountLabel}
                         </Link>
                         <button type="button" onClick={handleCreatePost} className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-100">
                           <svg className="h-5 w-5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5l4 4L8 20l-4 1 1-4L16.5 3.5z"/></svg>
@@ -322,7 +323,7 @@ const Navbar = () => {
               </>
             ) : (
               <>
-                <Link to="/account" className="block rounded-md border border-slate-200 px-4 py-2 text-slate-700">My Account</Link>
+                <Link to={accountUrl} className="block rounded-md border border-slate-200 px-4 py-2 text-slate-700">{accountLabel}</Link>
                 <button type="button" onClick={handleCreatePost} className="block w-full rounded-md border border-slate-200 px-4 py-2 text-left text-slate-700">Create Post</button>
                 <button onClick={logout} className="w-full text-left rounded-md border border-slate-200 px-4 py-2 text-slate-700">Logout</button>
               </>
