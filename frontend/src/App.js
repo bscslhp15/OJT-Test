@@ -34,6 +34,9 @@ function App() {
             <Route path="confirm" element={<Confirm />} />
             <Route path="about" element={<About />} />
             <Route path="blog" element={<Blog />} />
+            <Route path="blog/category/:categorySlug" element={<Blog />} />
+            <Route path="blog/tag/:tagSlug" element={<Blog />} />
+            <Route path="blog/:year/:month/:day/:slug" element={<SingleBlog />} />
             <Route path="blog/:id" element={<SingleBlog />} />
             <Route path="contact" element={<Contact />} />
             <Route path="pricing" element={<Pricing />} />
@@ -43,6 +46,7 @@ function App() {
             <Route path="create-post" element={<PostEditor />} />
             <Route path="edit-post/:id" element={<PostEditor />} />
             <Route path="account" element={<Account />} />
+            <Route path="author/:authorSlug" element={<Account />} />
             <Route path=":username" element={<Account />} />
           </Route>
         </Routes>

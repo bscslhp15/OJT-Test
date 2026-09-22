@@ -2,8 +2,10 @@ import { useState, useEffect, useContext, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../components/page-header';
 import AuthContext from '../context/auth-context';
-import { createPostSlug } from '../services/post-url';
+import { createPost, updatePost } from '../services/api';
+import { createPostSlug, getPostUrl } from '../services/post-url';
 import { getAccountUrl } from '../services/account-url';
+import { loadPublicPosts } from '../services/public-data';
 
 const defaultCategories = ['Uncategorized'];
 const textColors = ['#000000', '#4b5563', '#991b1b', '#b45309', '#166534', '#155e75', '#1d4ed8', '#581c87', '#be123c', '#dc2626', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#a855f7', '#ec4899', '#f8fafc'];
@@ -18,6 +20,21 @@ const formatOptions = [
   ['h6', 'Heading 6'],
   ['pre', 'Preformatted']
 ];
+const codeReferenceItems = [
+  { key: 'b', shortcut: 'b', tag: '<strong>', description: 'Ginagawang bold ang napiling text.' },
+  { key: 'i', shortcut: 'i', tag: '<em>', description: 'Ginagawang italic (nakahilig) ang text.' },
+  { key: 'link', shortcut: 'link', tag: '<a href="...">', description: 'Nagpapasok ng hyperlink o URL link sa text.' },
+  { key: 'b-quote', shortcut: 'b-quote', tag: '<blockquote>', description: 'Ginagawang quote block / kutasyon ang text.' },
+  { key: 'del', shortcut: 'del', tag: '<del>', description: 'Naglalagay ng guhit sa gitna ng text (strikethrough).' },
+  { key: 'ins', shortcut: 'ins', tag: '<ins>', description: 'Naglalagay ng salungguhit (underline) sa text.' },
+  { key: 'img', shortcut: 'img', tag: '<img src="...">', description: 'Nagpapasok ng imahe gamit ang image URL.' },
+  { key: 'ul', shortcut: 'ul', tag: '<ul>', description: 'Nagsisimula ng bulleted list (unordered list).' },
+  { key: 'ol', shortcut: 'ol', tag: '<ol>', description: 'Nagsisimula ng numbered list (ordered list).' },
+  { key: 'li', shortcut: 'li', tag: '<li>', description: 'Nagdaragdag ng indibidwal na item sa loob ng listahan.' },
+  { key: 'code', shortcut: 'code', tag: '<code>', description: 'Nagpapakita ng text bilang programming/source code.' },
+  { key: 'more', shortcut: 'more', tag: '<!--more-->', description: 'Nagpuputol ng post preview sa blog page para magkaroon ng "Read More" button.' },
+  { key: 'close-tags', shortcut: 'close tags', tag: 'N/A', description: 'Awtomatikong isinasara ang lahat ng open HTML tags na hindi pa naisara.' }
+];
 const basicToolbar = [
   ['bold', 'fa-solid fa-bold', 'Bold'],
   ['italic', 'fa-solid fa-italic', 'Italic'],
@@ -30,6 +47,30 @@ const basicToolbar = [
   ['createLink', 'fa-solid fa-link', 'Insert/edit link'],
   ['insertReadMore', 'fa-solid fa-ellipsis', 'Insert read more tag']
 ];
+const codeShortcutButtons = [
+  ['bold', 'b', 'Bold — <strong> — makes selected text bold', '<strong>text</strong>'],
+  ['italic', 'i', 'Italic — <em> — makes text italic', '<em>text</em>'],
+  ['createLink', 'link', 'Link — <a href="..."> — insert a hyperlink', '<a href="https://example.com">text</a>'],
+  ['formatBlock', 'b-quote', 'Blockquote — <blockquote> — quote block', '<blockquote>text</blockquote>'],
+  ['strikeThrough', 'del', 'Strikethrough — <del> — strike through text', '<del>text</del>'],
+  ['insertHTML', 'ins', 'Underline — <ins> — underline text', '<ins>text</ins>'],
+  ['insertHTML', 'img', 'Image — <img src="..."> — insert an image', '<img src="https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=900&q=80" alt="image" />'],
+  ['insertUnorderedList', 'ul', 'Unordered list — <ul> — create a bullet list', '<ul><li>text</li></ul>'],
+  ['insertOrderedList', 'ol', 'Ordered list — <ol> — create a numbered list', '<ol><li>text</li></ol>'],
+  ['insertHTML', 'li', 'List item — <li> — list item', '<li>text</li>'],
+  ['insertHTML', 'code', 'Code — <code> — display code text', '<code>text</code>'],
+  ['insertReadMore', 'more', 'Read more — <!--more--> — split the post preview', '<!--more-->'],
+  ['closeTags', 'close tags', 'Close tags — auto close open HTML tags', null]
+];
+const codePairedTags = {
+  b: 'strong',
+  i: 'em',
+  'b-quote': 'blockquote',
+  del: 'del',
+  ins: 'ins',
+  li: 'li',
+  code: 'code'
+};
 const extendedToolbarItems = [
   ['strikeThrough', 'fa-solid fa-strikethrough', 'Strikethrough'],
   ['insertHorizontalRule', 'fa-solid fa-minus', 'Horizontal line'],
@@ -137,6 +178,165 @@ const combineBlocksIntoEditorContent = (parsedBlocks) => parsedBlocks.map((block
   return block.data.text || '';
 }).filter(Boolean).join('<p><br></p>');
 
+// Rewrites the legacy/quirky tags that document.execCommand() produces in
+// contentEditable (<b>, <i>, <strike>, <font color="...">) into the clean,
+// semantic markup WordPress itself outputs (<strong>, <em>, <del>, <span
+// style="color:...">), and clears out the stray id="null" attribute Chrome
+// sometimes attaches when inserting a horizontal rule.
+const normalizeVisualHtml = (html) => {
+  if (!html) return html;
+  let next = html;
+  next = next.replace(/<(\/?)b(\s[^>]*)?>/gi, (match, closing, attrs) => `<${closing}strong${attrs || ''}>`);
+  next = next.replace(/<(\/?)i(\s[^>]*)?>/gi, (match, closing, attrs) => `<${closing}em${attrs || ''}>`);
+  next = next.replace(/<(\/?)strike(\s[^>]*)?>/gi, (match, closing, attrs) => `<${closing}del${attrs || ''}>`);
+  next = next.replace(/<font\b([^>]*)>/gi, (match, attrsStr) => {
+    const colorMatch = attrsStr.match(/color="([^"]*)"/i);
+    const styleMatch = attrsStr.match(/style="([^"]*)"/i);
+    const existingStyle = styleMatch ? styleMatch[1].replace(/;\s*$/, '') + ';' : '';
+    const colorStyle = colorMatch ? `color:${colorMatch[1]};` : '';
+    return `<span style="${existingStyle}${colorStyle}">`;
+  });
+  next = next.replace(/<\/font>/gi, '</span>');
+  next = next.replace(/\s+id="null"/gi, '');
+  return next;
+};
+
+const normalizePastedHtml = (html) => {
+  const source = String(html || '');
+  if (typeof DOMParser === 'undefined' || !/<(?:html|head|body|!doctype)\b/i.test(source)) {
+    return normalizeVisualHtml(source);
+  }
+
+  const parsed = new DOMParser().parseFromString(source, 'text/html');
+  parsed.querySelectorAll('script, style, link, meta, title').forEach((element) => element.remove());
+  return normalizeVisualHtml(parsed.body?.innerHTML || source);
+};
+
+// Pretty-prints HTML by putting block-level elements (p, div, ul/ol/li,
+// blockquote, headings, hr, etc.) on their own indented line, the way
+// WordPress's classic "Text" tab lays content out, while keeping inline
+// tags (strong, em, a, span, del, ins, code) flowing inside their line.
+const HTML_BLOCK_TAGS = new Set(['P', 'DIV', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HR', 'PRE', 'FIGURE', 'FIGCAPTION', 'TABLE', 'TR', 'TD', 'TH', 'THEAD', 'TBODY']);
+const HTML_VOID_TAGS = new Set(['AREA', 'BASE', 'BR', 'COL', 'EMBED', 'HR', 'IMG', 'INPUT', 'LINK', 'META', 'PARAM', 'SOURCE', 'TRACK', 'WBR']);
+
+const prettyPrintHtml = (html) => {
+  if (!html || !html.trim()) return '';
+
+  if (typeof document === 'undefined') {
+    return normalizeVisualHtml(html).replace(/&nbsp;/gi, ' ').trim();
+  }
+
+  const container = document.createElement('div');
+  container.innerHTML = normalizeVisualHtml(html).replace(/&nbsp;/gi, ' ');
+
+  const inlineTags = new Set(['a', 'strong', 'em', 'b', 'i', 'span', 'del', 'ins', 'code', 'small', 'mark', 'sub', 'sup']);
+  const blockLevelTags = new Set(['p', 'div', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre', 'figure', 'table', 'tr', 'td', 'th', 'hr', 'ul', 'ol', 'li']);
+
+  const serializeInlineNode = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return (node.textContent || '').replace(/\s+/g, ' ').trim();
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+    const tag = node.tagName.toLowerCase();
+    const attrs = Array.from(node.attributes).map((attr) => ` ${attr.name}="${attr.value}"`).join('');
+    const text = Array.from(node.childNodes).map((child) => serializeInlineNode(child)).join('').trim();
+
+    if (tag === 'br') return '<br />';
+    if (tag === 'hr') return '<hr />';
+    if (inlineTags.has(tag) || !blockLevelTags.has(tag)) {
+      return `<${tag}${attrs}>${text}</${tag}>`;
+    }
+
+    return `<${tag}${attrs}>${text}</${tag}>`;
+  };
+
+  const serializeNode = (node, indent = 0) => {
+    const pad = ' '.repeat(indent);
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+      return text ? `${pad}${text}` : '';
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+    const tag = node.tagName.toLowerCase();
+    const attrs = Array.from(node.attributes).map((attr) => ` ${attr.name}="${attr.value}"`).join('');
+
+    if (tag === 'br') return `${pad}<br />`;
+    if (tag === 'hr') return `${pad}<hr />`;
+
+    const children = Array.from(node.childNodes)
+      .map((child) => serializeNode(child, inlineTags.has(tag) ? indent : indent + 2))
+      .filter(Boolean);
+
+    if (inlineTags.has(tag)) {
+      const inner = children.join('').replace(new RegExp(`^${' '.repeat(indent)}`, 'g'), '').trim();
+      return `${pad}<${tag}${attrs}>${inner}</${tag}>`;
+    }
+
+    if (tag === 'li') {
+      const content = Array.from(node.childNodes)
+        .map((child) => serializeInlineNode(child))
+        .join('')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return `${pad}<li${attrs}>${content}</li>`;
+    }
+
+    if (tag === 'ul' || tag === 'ol') {
+      const items = Array.from(node.children)
+        .map((child) => serializeNode(child, indent + 2))
+        .filter(Boolean)
+        .join('\n');
+      return `${pad}<${tag}${attrs}>\n${items}\n${pad}</${tag}>`;
+    }
+
+    if (blockLevelTags.has(tag)) {
+      const content = children.join('\n').trim();
+      return `${pad}<${tag}${attrs}>${content}</${tag}>`;
+    }
+
+    const content = children.join('').trim();
+    return `${pad}<${tag}${attrs}>${content}</${tag}>`;
+  };
+
+  const chunks = Array.from(container.childNodes)
+    .map((node) => serializeNode(node, 0))
+    .filter(Boolean);
+
+  return chunks.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
+};
+
+// Normalizes every block's stored text inside the JSON content blob that
+// gets saved/published, so the final saved post also carries clean,
+// WordPress-style tags instead of the raw execCommand output.
+const normalizeStoredContent = (contentJson) => {
+  if (!contentJson) return contentJson;
+  try {
+    const parsed = JSON.parse(contentJson);
+    if (parsed && Array.isArray(parsed.blocks)) {
+      const normalizedBlocks = parsed.blocks.flatMap((block) => {
+        try {
+          const nested = JSON.parse(block?.data?.text || '');
+          if (nested && Array.isArray(nested.blocks)) return nested.blocks;
+        } catch (error) {
+          // The block contains regular HTML.
+        }
+        return block?.data?.text
+          ? [{ ...block, data: { ...block.data, text: normalizePastedHtml(block.data.text) } }]
+          : [block];
+      });
+      return JSON.stringify({ ...parsed, blocks: normalizedBlocks });
+    }
+  } catch (error) {
+    return normalizePastedHtml(contentJson);
+  }
+  return contentJson;
+};
+
 const formatPublishDate = (value) => {
   if (!value) return '';
   const date = new Date(value);
@@ -164,6 +364,8 @@ const PostEditor = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showTrashConfirm, setShowTrashConfirm] = useState(false);
   const [showPublishSchedule, setShowPublishSchedule] = useState(false);
+  const [isPermalinkEditing, setIsPermalinkEditing] = useState(false);
+  const [permalinkDraft, setPermalinkDraft] = useState('');
   const [publishMode, setPublishMode] = useState('immediate');
   const [publishAt, setPublishAt] = useState('');
   const [publishedAt, setPublishedAt] = useState('');
@@ -179,6 +381,9 @@ const PostEditor = () => {
   const [parentCategory, setParentCategory] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [isExtendedToolbarOpen, setIsExtendedToolbarOpen] = useState(false);
+  const [editorViewMode, setEditorViewMode] = useState('visual');
+  const [codeViewValues, setCodeViewValues] = useState({});
+  const [codeTagModes, setCodeTagModes] = useState({});
   const [showSpecialCharacters, setShowSpecialCharacters] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const editorRefs = useRef({});
@@ -207,6 +412,28 @@ const PostEditor = () => {
   const [imageDetails, setImageDetails] = useState({ alt: '', caption: '', align: 'none', size: 'custom', width: '', height: '', link: 'none' });
   const [imageLinkUrl, setImageLinkUrl] = useState('');
   const resizeSession = useRef(null);
+
+  const getCurrentPublishedDate = () => {
+    const sourceDate = publishMode === 'scheduled' && publishAt ? publishAt : (publishedAt || new Date().toISOString());
+    const parsedDate = new Date(sourceDate);
+    return Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+  };
+
+  const normalizeSavedSlug = (value, fallbackTitle = '') => {
+    const rawValue = String(value || '').trim();
+    if (rawValue && !/^post-\d+$/i.test(rawValue)) return rawValue;
+
+    const derived = createPostSlug(fallbackTitle || form.title || 'untitled');
+    return derived || rawValue || `post-${Date.now()}`;
+  };
+
+  const getPermalinkPreview = () => {
+    const slug = form.slug?.trim() || createPostSlug(form.title || 'untitled') || `post-${Date.now()}`;
+    const date = getCurrentPublishedDate();
+    const post = { title: form.title || 'Untitled', slug, publishedAt: date.toISOString() };
+    const relativeUrl = getPostUrl(post);
+    return `${window.location.origin}${relativeUrl}`;
+  };
 
   const refreshActiveCommands = () => {
     if (!activeEditorId || !editorRefs.current[activeEditorId]) return;
@@ -314,27 +541,59 @@ const PostEditor = () => {
   }, []);
 
   useEffect(() => {
+    setPermalinkDraft(form.slug || '');
+  }, [form.slug]);
+
+  useEffect(() => {
     if (!user) return;
 
-    const posts = Array.isArray(user.posts) ? user.posts : [];
-    const draftKey = `testsite-drafts-${String(user.email || user.username || 'anonymous').toLowerCase()}`;
-    const savedDrafts = JSON.parse(localStorage.getItem(draftKey) || '[]');
-    const drafts = Array.isArray(savedDrafts) ? savedDrafts : [];
-    const savedCategories = posts
-      .map((post) => String(post.category || '').trim())
-      .filter(Boolean);
-    setCategoryList((current) => [...new Set([...current, ...savedCategories])]);
+    let isMounted = true;
 
-    if (isEdit) {
-      const existingPost = posts.find((post) => String(post.id) === String(id) || createPostSlug(post.title) === id)
-        || drafts.find((draft) => String(draft.id) === String(id) || createPostSlug(draft.title) === id);
+    const loadExistingPost = async () => {
+      const posts = Array.isArray(user.posts) ? user.posts : [];
+      const globalPosts = JSON.parse(localStorage.getItem('testsite-posts') || '[]');
+      const draftKey = `testsite-drafts-${String(user.email || user.username || 'anonymous').toLowerCase()}`;
+      const savedDrafts = JSON.parse(localStorage.getItem(draftKey) || '[]');
+      const drafts = Array.isArray(savedDrafts) ? savedDrafts : [];
+      const allSavedPosts = [...posts, ...globalPosts];
+      let existingPost = allSavedPosts.find((post) => {
+        const postId = String(post.id || '').trim();
+        const slugValue = String(post.slug || createPostSlug(post.title) || '').trim();
+        return String(postId) === String(id)
+          || slugValue === String(id)
+          || createPostSlug(post.title || '') === String(id);
+      }) || drafts.find((draft) => {
+        const draftId = String(draft.id || '').trim();
+        const draftSlugValue = String(draft.slug || createPostSlug(draft.title) || '').trim();
+        return String(draftId) === String(id)
+          || draftSlugValue === String(id)
+          || createPostSlug(draft.title || '') === String(id);
+      });
 
-      if (existingPost) {
+      if (isEdit && !existingPost) {
+        const publicPosts = await loadPublicPosts();
+        existingPost = publicPosts.find((post) => {
+          const postId = String(post.id || '').trim();
+          const slugValue = String(post.slug || createPostSlug(post.title) || '').trim();
+          return String(postId) === String(id)
+            || slugValue === String(id)
+            || createPostSlug(post.title || '') === String(id);
+        });
+      }
+
+      if (!isMounted) return;
+
+      const savedCategories = [...allSavedPosts, ...(existingPost ? [existingPost] : [])]
+        .flatMap((post) => String(post.category || '').split(',').map((category) => category.trim()))
+        .filter(Boolean);
+      setCategoryList((current) => [...new Set([...current, ...savedCategories])]);
+
+      if (isEdit && existingPost) {
         setEditingPostId(existingPost.id);
         const parsedBlocks = parseContentBlocks(existingPost.content || '');
         setForm({
           title: existingPost.title || '',
-          slug: existingPost.slug || '',
+          slug: normalizeSavedSlug(existingPost.slug, existingPost.title),
           category: existingPost.category || 'Uncategorized',
           tags: Array.isArray(existingPost.tags) ? existingPost.tags.join(', ') : existingPost.tags || '',
           image: existingPost.featuredImage || existingPost.image || null,
@@ -347,22 +606,30 @@ const PostEditor = () => {
         setBlocks([{ ...createBlock(), data: { text: combineBlocksIntoEditorContent(parsedBlocks) } }]);
         return;
       }
-    }
 
-    setForm({
-      title: '',
-      slug: '',
-      category: 'Uncategorized',
-      tags: '',
-      image: null,
-      content: ''
-    });
-    setEditingPostId(null);
-    setPublishMode('immediate');
-    setPublishAt('');
-    setPublishedAt('');
-    setTagInput('');
-    setBlocks([createBlock()]);
+      if (isEdit) {
+        setEditingPostId(null);
+        return;
+      }
+
+      setForm({
+        title: '',
+        slug: '',
+        category: 'Uncategorized',
+        tags: '',
+        image: null,
+        content: ''
+      });
+      setEditingPostId(null);
+      setPublishMode('immediate');
+      setPublishAt('');
+      setPublishedAt('');
+      setTagInput('');
+      setBlocks([createBlock()]);
+    };
+
+    loadExistingPost();
+    return () => { isMounted = false; };
   }, [id, isEdit, user]);
 
   useEffect(() => {
@@ -375,11 +642,26 @@ const PostEditor = () => {
     blocks.forEach((block) => {
       const editor = editorRefs.current[block.id];
       const content = block.data.text || '';
-      if (editor && editor.innerHTML !== content) {
+      if (editor && editorViewMode === 'visual' && editor.innerHTML !== content) {
         editor.innerHTML = content;
       }
+      if (editorViewMode === 'code') {
+        setCodeViewValues((current) => {
+          if (current[block.id] === content) return current;
+          return { ...current, [block.id]: content };
+        });
+      }
     });
-  }, [blocks]);
+  }, [blocks, editorViewMode]);
+
+  useEffect(() => {
+    if (editorViewMode !== 'code') return;
+    Object.values(editorRefs.current).forEach((editor) => {
+      if (!(editor instanceof HTMLTextAreaElement)) return;
+      editor.style.height = 'auto';
+      editor.style.height = `${Math.max(220, editor.scrollHeight)}px`;
+    });
+  }, [codeViewValues, editorViewMode]);
 
   useEffect(() => {
     const handleBeforeUnload = (event) => {
@@ -450,6 +732,16 @@ const PostEditor = () => {
       return;
     }
 
+    if (name === 'title') {
+      setForm((prev) => ({
+        ...prev,
+        title: value,
+        slug: prev.slug && prev.slug !== createPostSlug(prev.title) ? prev.slug : createPostSlug(value)
+      }));
+      setIsDirty(true);
+      return;
+    }
+
     setForm((prev) => ({
       ...prev,
       [name]: value
@@ -462,7 +754,12 @@ const PostEditor = () => {
     if (!category) return;
 
     setCategoryList((current) => current.includes(category) ? current : [...current, category]);
-    setForm((current) => ({ ...current, category }));
+    setForm((current) => {
+      const selectedCategories = String(current.category || '').split(',').map((item) => item.trim()).filter(Boolean);
+      return selectedCategories.includes(category)
+        ? current
+        : { ...current, category: [...selectedCategories, category].join(', ') };
+    });
     setNewCategory('');
     setParentCategory('');
     setShowAddCategory(false);
@@ -471,15 +768,32 @@ const PostEditor = () => {
 
   const getTags = () => form.tags.split(',').map((tag) => tag.trim()).filter(Boolean);
 
+  const getCategories = (value = form.category) => String(value || '')
+    .split(',')
+    .map((category) => category.trim())
+    .filter(Boolean);
+
+  const toggleCategory = (category) => {
+    setForm((current) => {
+      const selectedCategories = getCategories(current.category);
+      const nextCategories = selectedCategories.includes(category)
+        ? selectedCategories.filter((selectedCategory) => selectedCategory !== category)
+        : [...selectedCategories, category];
+      return { ...current, category: nextCategories.join(', ') || 'Uncategorized' };
+    });
+    setIsDirty(true);
+  };
+
   const handleAddTag = () => {
     const nextTag = tagInput.trim();
     if (!nextTag) return;
 
-    const tags = getTags();
-    if (!tags.some((tag) => tag.toLowerCase() === nextTag.toLowerCase())) {
-      setForm((current) => ({ ...current, tags: [...getTags(), nextTag].join(', ') }));
-      setIsDirty(true);
-    }
+    setForm((current) => {
+      const tags = String(current.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean);
+      if (tags.some((tag) => tag.toLowerCase() === nextTag.toLowerCase())) return current;
+      return { ...current, tags: [...tags, nextTag].join(', ') };
+    });
+    setIsDirty(true);
     setTagInput('');
   };
 
@@ -491,14 +805,14 @@ const PostEditor = () => {
     }
 
     const enteredTags = value.split(',').map((tag) => tag.trim()).filter(Boolean);
-    const existingTags = getTags();
-    const nextTags = [...existingTags];
-    enteredTags.forEach((tag) => {
-      if (!nextTags.some((existingTag) => existingTag.toLowerCase() === tag.toLowerCase())) {
-        nextTags.push(tag);
-      }
+    setForm((current) => {
+      const existingTags = String(current.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean);
+      const nextTags = [...existingTags];
+      enteredTags.forEach((tag) => {
+        if (!nextTags.some((existingTag) => existingTag.toLowerCase() === tag.toLowerCase())) nextTags.push(tag);
+      });
+      return { ...current, tags: nextTags.join(', ') };
     });
-    setForm((current) => ({ ...current, tags: nextTags.join(', ') }));
     setTagInput('');
     setIsDirty(true);
   };
@@ -513,7 +827,7 @@ const PostEditor = () => {
   const handleRemoveTag = (tagToRemove) => {
     setForm((current) => ({
       ...current,
-      tags: getTags().filter((tag) => tag !== tagToRemove).join(', ')
+      tags: String(current.tags || '').split(',').map((tag) => tag.trim()).filter((tag) => tag && tag !== tagToRemove).join(', ')
     }));
     setIsDirty(true);
   };
@@ -521,7 +835,7 @@ const PostEditor = () => {
   const mostUsedCategories = categoryList
     .map((category) => ({
       category,
-      count: (user?.posts || []).filter((post) => post.category === category).length
+      count: (user?.posts || []).filter((post) => String(post.category || '').split(',').map((item) => item.trim()).includes(category)).length
     }))
     .sort((left, right) => right.count - left.count)
     .map(({ category }) => category);
@@ -532,6 +846,24 @@ const PostEditor = () => {
     setBlocks(nextBlocks);
     setForm((prev) => ({ ...prev, content: JSON.stringify({ time: Date.now(), blocks: nextBlocks }) }));
     setIsDirty(true);
+  };
+
+  const switchToCodeView = () => {
+    const nextBlocks = blocks.map((block) => {
+      if (block.type === 'image') return block;
+      const cleanedText = normalizeVisualHtml(block.data.text || '');
+      return { ...block, data: { ...block.data, text: cleanedText } };
+    });
+    setBlocks(nextBlocks);
+    setCodeViewValues((current) => {
+      const nextValues = {};
+      nextBlocks.forEach((block) => {
+        nextValues[block.id] = prettyPrintHtml(block.data.text || '');
+      });
+      return { ...current, ...nextValues };
+    });
+    setForm((prev) => ({ ...prev, content: JSON.stringify({ time: Date.now(), blocks: nextBlocks }) }));
+    setEditorViewMode('code');
   };
 
   const addBlock = (type) => updateBlocks([...blocks, createBlock(type)]);
@@ -590,6 +922,173 @@ const PostEditor = () => {
     setActiveEditorId(editorId);
     let format = null;
     editor.focus();
+
+    if (editorViewMode === 'code' && editor instanceof HTMLTextAreaElement) {
+      const currentValue = editor.value || '';
+      const start = editor.selectionStart ?? currentValue.length;
+      const end = editor.selectionEnd ?? currentValue.length;
+      const selectedText = currentValue.slice(start, end);
+
+      const insertInlineTag = (tagName, fallbackText = 'text') => {
+        const openTag = `<${tagName}>`;
+        const closeTag = `</${tagName}>`;
+        const selected = selectedText || fallbackText;
+        const insertion = `${openTag}${selected}${closeTag}`;
+        const nextValue = `${currentValue.slice(0, start)}${insertion}${currentValue.slice(end)}`;
+        const cursorStart = start + openTag.length + selected.length;
+        const cursorEnd = cursorStart;
+        setCodeViewValues((current) => ({ ...current, [editorId]: nextValue }));
+        editor.value = nextValue;
+        updateBlock(editorId, { text: nextValue });
+        requestAnimationFrame(() => {
+          editor.focus();
+          editor.setSelectionRange(cursorStart, cursorEnd);
+        });
+      };
+
+      if (command === 'closeTags') {
+        const voidTags = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+        const matches = [...currentValue.matchAll(/<\/?([a-z0-9-]+)(?:\s[^>]*)?>/gi)];
+        const stack = [];
+        matches.forEach((match) => {
+          const tag = match[1]?.toLowerCase();
+          if (!tag) return;
+          if (match[0].startsWith('</')) {
+            const lastIndex = stack.lastIndexOf(tag);
+            if (lastIndex >= 0) stack.splice(lastIndex, 1);
+          } else if (!voidTags.has(tag) && !match[0].endsWith('/>')) {
+            stack.push(tag);
+          }
+        });
+        const nextValue = `${currentValue}${stack.slice().reverse().map((tag) => `</${tag}>`).join('')}`;
+        setCodeViewValues((current) => ({ ...current, [editorId]: nextValue }));
+        editor.value = nextValue;
+        updateBlock(editorId, { text: nextValue });
+        requestAnimationFrame(() => {
+          editor.focus();
+          editor.setSelectionRange(nextValue.length, nextValue.length);
+        });
+        return;
+      }
+
+      if (command === 'createLink') {
+        const url = window.prompt('Ilagay ang link URL:', 'https://');
+        if (!url) return;
+        const linkText = selectedText || 'link';
+        const inserted = `<a href="${url}">${linkText}</a>`;
+        const nextValue = `${currentValue.slice(0, start)}${inserted}${currentValue.slice(end)}`;
+        const nextCursor = start + inserted.length;
+        setCodeViewValues((current) => ({ ...current, [editorId]: nextValue }));
+        editor.value = nextValue;
+        updateBlock(editorId, { text: nextValue });
+        requestAnimationFrame(() => {
+          editor.focus();
+          editor.setSelectionRange(nextCursor, nextCursor);
+        });
+        return;
+      }
+
+      if (command === 'toggleCodeTag') {
+        const tagName = codePairedTags[value];
+        if (!tagName) return;
+        const isClosing = Boolean(codeTagModes[editorId]?.[value]);
+        const insertion = isClosing ? `</${tagName}>` : `<${tagName}>`;
+        const nextValue = `${currentValue.slice(0, start)}${insertion}${currentValue.slice(end)}`;
+        setCodeTagModes((current) => ({
+          ...current,
+          [editorId]: { ...(current[editorId] || {}), [value]: !isClosing }
+        }));
+        setCodeViewValues((current) => ({ ...current, [editorId]: nextValue }));
+        editor.value = nextValue;
+        updateBlock(editorId, { text: nextValue });
+        requestAnimationFrame(() => {
+          editor.focus();
+          const cursorPosition = start + insertion.length;
+          editor.setSelectionRange(cursorPosition, cursorPosition);
+        });
+        return;
+      }
+
+      if (command === 'bold') return insertInlineTag('strong');
+      if (command === 'italic') return insertInlineTag('em');
+      if (command === 'strikeThrough') return insertInlineTag('del');
+      if (command === 'formatBlock') return insertInlineTag('blockquote');
+      if (command === 'insertReadMore') {
+        const inserted = '<!--more-->';
+        const nextValue = `${currentValue.slice(0, start)}${inserted}${currentValue.slice(end)}`;
+        setCodeViewValues((current) => ({ ...current, [editorId]: nextValue }));
+        editor.value = nextValue;
+        updateBlock(editorId, { text: nextValue });
+        requestAnimationFrame(() => {
+          editor.focus();
+          editor.setSelectionRange(start + inserted.length, start + inserted.length);
+        });
+        return;
+      }
+      if (command === 'insertUnorderedList') {
+        const tag = '<ul>\n  <li>text</li>\n</ul>';
+        const nextValue = `${currentValue.slice(0, start)}${tag}${currentValue.slice(end)}`;
+        setCodeViewValues((current) => ({ ...current, [editorId]: nextValue }));
+        editor.value = nextValue;
+        updateBlock(editorId, { text: nextValue });
+        requestAnimationFrame(() => {
+          editor.focus();
+          editor.setSelectionRange(start + tag.indexOf('text') + 4, start + tag.indexOf('text') + 4);
+        });
+        return;
+      }
+      if (command === 'insertOrderedList') {
+        const tag = '<ol>\n  <li>text</li>\n</ol>';
+        const nextValue = `${currentValue.slice(0, start)}${tag}${currentValue.slice(end)}`;
+        setCodeViewValues((current) => ({ ...current, [editorId]: nextValue }));
+        editor.value = nextValue;
+        updateBlock(editorId, { text: nextValue });
+        requestAnimationFrame(() => {
+          editor.focus();
+          editor.setSelectionRange(start + tag.indexOf('text') + 4, start + tag.indexOf('text') + 4);
+        });
+        return;
+      }
+      if (command === 'insertHTML') {
+        const tagValue = value || '<code>text</code>';
+        const insertion = tagValue.startsWith('<') ? tagValue : `<${tagValue}>text</${tagValue}>`;
+        const nextValue = `${currentValue.slice(0, start)}${insertion}${currentValue.slice(end)}`;
+        setCodeViewValues((current) => ({ ...current, [editorId]: nextValue }));
+        editor.value = nextValue;
+        updateBlock(editorId, { text: nextValue });
+        requestAnimationFrame(() => {
+          editor.focus();
+          const cursorIndex = nextValue.indexOf('text', start);
+          const cursorPos = cursorIndex >= 0 ? cursorIndex + 4 : start + insertion.length;
+          editor.setSelectionRange(cursorPos, cursorPos);
+        });
+        return;
+      }
+      return;
+    }
+    if (command === 'closeTags') {
+      const closeTagStack = (html) => {
+        const voidTags = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+        const matches = [...html.matchAll(/<\/?([a-z0-9-]+)(?:\s[^>]*)?>/gi)];
+        const stack = [];
+        matches.forEach((match) => {
+          const tag = match[1]?.toLowerCase();
+          if (!tag) return;
+          if (match[0].startsWith('</')) {
+            const lastIndex = stack.lastIndexOf(tag);
+            if (lastIndex >= 0) stack.splice(lastIndex, 1);
+          } else if (!voidTags.has(tag) && !match[0].endsWith('/>')) {
+            stack.push(tag);
+          }
+        });
+        return `${html}${stack.slice().reverse().map((tag) => `</${tag}>`).join('')}`;
+      };
+      const nextHtml = closeTagStack(editor.innerHTML || '');
+      editor.innerHTML = nextHtml;
+      placeCaretAtEnd(editor);
+      updateBlock(editorId, { text: editor.innerHTML });
+      return;
+    }
     if (command === 'insertUnorderedList' || command === 'insertOrderedList') {
       const listTag = command === 'insertOrderedList' ? 'ol' : 'ul';
       if (!editor.textContent.trim() && !editor.querySelector('li')) {
@@ -672,6 +1171,8 @@ const PostEditor = () => {
         updateBlock(editorId, { text: editor.innerHTML });
       }).catch(() => {});
       return;
+    } else if (command === 'insertHTML') {
+      document.execCommand('insertHTML', false, value);
     } else {
       document.execCommand(command, false, value);
     }
@@ -1224,9 +1725,19 @@ const PostEditor = () => {
     setShowSpecialCharacters(false);
   };
 
-  const updateBlock = (id, data) => updateBlocks(blocks.map((block) => (
-    block.id === id ? { ...block, data: { ...block.data, ...data } } : block
-  )));
+  const updateBlock = (id, data) => {
+    const nextBlocks = blocks.map((block) => (
+      block.id === id ? { ...block, data: { ...block.data, ...data } } : block
+    ));
+    updateBlocks(nextBlocks);
+    const nextHtml = data.text ?? editorRefs.current[id]?.innerHTML ?? '';
+    setCodeViewValues((current) => ({ ...current, [id]: nextHtml }));
+  };
+
+  const blockDataTextForEditor = (id) => {
+    const block = blocks.find((item) => item.id === id);
+    return block?.data?.text ?? '';
+  };
 
   const removeBlock = (id) => {
     const nextBlocks = blocks.filter((block) => block.id !== id);
@@ -1241,28 +1752,45 @@ const PostEditor = () => {
     reader.readAsDataURL(file);
   };
 
-  const savePost = (redirectTarget = getAccountUrl(user), status = 'published') => {
+  const savePost = async (redirectTarget = getAccountUrl(user), status = 'published') => {
     try {
+      if (status === 'published' && !String(form.content || '').trim()) {
+        alert('Please add content to your post before publishing.');
+        return;
+      }
       const postId = editingPostId || id;
       const currentPosts = Array.isArray(user?.posts) ? user.posts : [];
       const allPosts = JSON.parse(localStorage.getItem('testsite-posts') || '[]');
-      const normalizedTags = form.tags
-        ? form.tags.split(',').map((tag) => tag.trim()).filter(Boolean)
-        : [];
+      const normalizedTags = [...new Set([
+        ...(form.tags ? form.tags.split(',').map((tag) => tag.trim()).filter(Boolean) : []),
+        ...(tagInput.trim() ? [tagInput.trim()] : [])
+      ])];
 
       const imageValue = form.image || '';
       const authorName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() || user?.username || 'Author';
       const authorId = user?.email || user?.username || `guest-${Date.now()}`;
+      const existingPost = isEdit && postId
+        ? [...(Array.isArray(user?.posts) ? user.posts : []), ...(JSON.parse(localStorage.getItem('testsite-posts') || '[]'))].find((post) => String(post.id) === String(postId))
+        : null;
+      const timestamp = new Date().toISOString();
+      const selectedPublishedDate = publishMode === 'scheduled' && publishAt ? new Date(publishAt) : new Date(publishedAt || timestamp);
+      const preferredSlug = String(form.slug || '').trim();
+      const generatedSlug = createPostSlug(form.title || 'Untitled');
+      const normalizedSlug = preferredSlug && !/^post-\d+$/i.test(preferredSlug)
+        ? preferredSlug
+        : generatedSlug || `post-${Date.now()}`;
       const postData = {
         title: form.title || 'Untitled',
-        slug: form.slug || `post-${Date.now()}`,
+        slug: normalizedSlug,
         category: form.category,
         status,
         tags: normalizedTags,
         image: imageValue,
         featuredImage: imageValue,
-        content: form.content,
-        date: new Date().toLocaleDateString(),
+        content: normalizeStoredContent(form.content),
+        date: selectedPublishedDate.toLocaleDateString(),
+        createdAt: isEdit && postId ? (existingPost?.createdAt || timestamp) : timestamp,
+        updatedAt: timestamp,
         author: authorName,
         authorId: authorId,
         authorAvatar: user?.profile_photo || (user?.email ? localStorage.getItem(`testsite-profile-${user.email.toLowerCase()}`) : ''),
@@ -1273,7 +1801,55 @@ const PostEditor = () => {
       const isScheduled = status === 'published' && scheduledDate && !Number.isNaN(scheduledDate.getTime()) && scheduledDate.getTime() > Date.now();
       postData.status = isScheduled ? 'scheduled' : status;
       postData.publishAt = isScheduled ? scheduledDate.toISOString() : null;
-      postData.publishedAt = isScheduled ? null : (publishedAt || new Date().toISOString());
+      postData.publishedAt = selectedPublishedDate.toISOString();
+
+      const backendPayload = {
+        authKey: user?.authKey || user?.auth_key,
+        title: postData.title,
+        content: postData.content,
+        category: postData.category,
+        status: postData.status,
+        allowComments: postData.allowComments !== false,
+        slug: postData.slug,
+        tags: normalizedTags,
+        image: imageValue,
+        publishedAt: postData.publishedAt,
+      };
+
+      if (user?.authKey || user?.auth_key) {
+        try {
+          const response = isEdit && postId
+            ? await updatePost(postId, backendPayload)
+            : await createPost(backendPayload);
+          if (response?.data?.success === false || (response?.data && !response?.data?.post && !response?.data?.id)) {
+            throw new Error('The server did not confirm that the post was saved.');
+          }
+          const savedPost = response?.data?.post || response?.data || { id: postId, ...postData };
+          if (savedPost?.id) {
+            postData.id = savedPost.id;
+            try {
+              if (isEdit && postId) {
+                const updatedGlobalPosts = allPosts.map((post) => String(post.id) === String(postId) ? { ...post, ...postData, id: savedPost.id } : post);
+                localStorage.setItem('testsite-posts', JSON.stringify(updatedGlobalPosts));
+              } else {
+                localStorage.setItem('testsite-posts', JSON.stringify([{ id: savedPost.id, ...postData }, ...allPosts]));
+              }
+            } catch (storageError) {
+              console.warn('Post saved to the database; local cache is full.', storageError);
+            }
+            navigate(getPostUrl({ ...postData, id: savedPost.id }));
+            return;
+          }
+        } catch (error) {
+          console.error('Backend post save failed.', error);
+          const serverData = error.response?.data;
+          const validationMessage = serverData?.message
+            || (serverData?.errors && Object.values(serverData.errors).flat().join(' '))
+            || (Array.isArray(serverData) && serverData.flatMap((item) => Object.values(item || {})).flat().join(' '));
+          alert(validationMessage || 'The post could not be published to the server. Please try again.');
+          return;
+        }
+      }
 
       if (status === 'draft') {
         const draftKey = `testsite-drafts-${String(user?.email || user?.username || 'anonymous').toLowerCase()}`;
@@ -1305,6 +1881,7 @@ const PostEditor = () => {
         );
 
         const savedPosts = updatedGlobalPosts.length > 0 ? updatedGlobalPosts : [{ id: Number(postId), ...postData }];
+        const updatedPost = { id: Number(postId), ...postData };
 
         localStorage.setItem('testsite-posts', JSON.stringify(savedPosts));
 
@@ -1313,10 +1890,10 @@ const PostEditor = () => {
         localStorage.setItem(draftKey, JSON.stringify(savedDrafts.filter((draft) => String(draft.id) !== String(postId))));
 
         if (updateProfile) {
-          updateProfile({ posts: updatedUserPosts.length > 0 ? updatedUserPosts : [{ id: Number(postId), ...postData }] });
+          updateProfile({ posts: updatedUserPosts.length > 0 ? updatedUserPosts : [updatedPost] });
         }
 
-        navigate(redirectTarget);
+        navigate(getPostUrl(updatedPost));
         return;
       }
 
@@ -1471,12 +2048,57 @@ const PostEditor = () => {
             </div>
 
             <div className="mb-6">
+              {!isPermalinkEditing ? (
+                <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
+                  <span className="font-medium text-slate-600">Permalink:</span>
+                  <span className="truncate text-slate-700">{getPermalinkPreview().replace(/\?.*$/, '')}</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsPermalinkEditing(true)}
+                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 transition hover:border-[#22C55E] hover:text-[#22C55E]"
+                  >
+                    Edit
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
+                  <span className="font-medium text-slate-600">Permalink:</span>
+                  <span className="truncate text-slate-700">{window.location.origin}/blog/{getCurrentPublishedDate().toISOString().slice(0, 10).replace(/-/g, '/')}/</span>
+                  <input
+                    value={permalinkDraft}
+                    onChange={(event) => setPermalinkDraft(event.target.value)}
+                    className="min-w-[140px] flex-1 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none transition focus:border-[#22C55E] focus:ring-1 focus:ring-[#22C55E]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const normalized = String(permalinkDraft || '').trim();
+                      setForm((current) => ({ ...current, slug: normalized || createPostSlug(current.title || 'untitled') }));
+                      setIsDirty(true);
+                      setIsPermalinkEditing(false);
+                    }}
+                    className="rounded-md bg-[#22C55E] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1fae58]"
+                  >
+                    OK
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPermalinkDraft(form.slug || '');
+                      setIsPermalinkEditing(false);
+                    }}
+                    className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:border-slate-400"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="mb-6">
               <div className="space-y-4">
                 {blocks.map((block, index) => (
-                  <div key={block.id} onClick={(event) => selectEditorImage(block.id, event)} className="group relative min-w-0 text-left">
-                    <div className="absolute right-4 top-4 hidden gap-1 rounded bg-white shadow-sm group-hover:flex">
-                      <button type="button" onClick={() => removeBlock(block.id)} className="px-2 py-1 text-xs text-slate-400 hover:text-red-600" aria-label={`Remove block ${index + 1}`}>×</button>
-                    </div>
+                  <div key={block.id} onClick={(event) => selectEditorImage(block.id, event)} className="relative min-w-0 text-left">
                     {block.type === 'image' ? (
                       <div>
                         {block.data.url ? <img src={block.data.url} alt={block.data.caption || 'Post block'} className="max-h-96 w-full object-cover" /> : <div className="flex h-40 items-center justify-center border-2 border-dashed border-slate-200 text-sm text-slate-400">Choose an image below</div>}
@@ -1485,74 +2107,118 @@ const PostEditor = () => {
                       </div>
                     ) : (
                       <>
-                        <div data-color-dropdown className="sticky top-[10rem] z-[5] mb-3 overflow-hidden rounded-3xl border border-slate-300 bg-slate-50 transition hover:border-[#22C55E]">
-                          <div className="flex flex-wrap items-center gap-1 p-1">
-                          <select
-                            value={block.data.format || 'p'}
-                            onChange={(event) => handleFormatChange(block.id, event.target.value)}
-                            onMouseDown={() => { setActiveEditorId(block.id); rememberEditorSelection(block.id); }}
-                            title="Text format"
-                            aria-label="Text format"
-                            className="h-7 border-r border-slate-300 bg-white px-2 text-xs text-slate-700 outline-none focus:border-indigo-500"
-                          >
-                            {formatOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                          </select>
-                          {basicToolbar.map(([command, label, title, value]) => (
-                            <button key={command} type="button" title={title} aria-label={title} onMouseDown={(event) => event.preventDefault()} onClick={() => command === 'insertReadMore' ? runEditorCommand('insertReadMore', null, block.id) : runEditorCommand(command, value, block.id)} className={`flex h-8 min-w-8 items-center justify-center px-1 text-base hover:bg-white hover:text-[#22C55E] ${activeCommands[command] ? 'bg-slate-300 text-slate-900' : 'text-slate-600'}`}>
-                              <i className={label} aria-hidden="true" />
-                            </button>
-                          ))}
-                          <button type="button" title="Add Media" aria-label="Add Media" onMouseDown={(event) => { event.preventDefault(); setActiveEditorId(block.id); rememberEditorSelection(block.id); }} onClick={() => { setMediaTab('upload'); setShowMediaUrlInput(false); setShowMediaModal(true); }} className="flex h-8 min-w-8 items-center justify-center px-1 text-base text-slate-600 hover:bg-white hover:text-[#22C55E]"><i className="fa-solid fa-images" aria-hidden="true" /></button>
-                          <button type="button" title="Extended toolbar" aria-label="Extended toolbar" onClick={() => setIsExtendedToolbarOpen((current) => !current)} className={`flex h-7 min-w-8 items-center justify-center px-1 text-sm ${isExtendedToolbarOpen ? 'bg-[#22C55E]/10 text-[#22C55E]' : 'text-slate-600 hover:bg-white hover:text-[#22C55E]'}`}><i className="fa-solid fa-sliders" aria-hidden="true" /></button>
-                          </div>
-                          {isExtendedToolbarOpen && (
-                            <div className="flex flex-wrap items-center gap-1 border-t border-slate-300 p-1">
-                              {extendedToolbarItems.map(([command, label, title]) => (
-                                <button key={command} type="button" title={title} aria-label={title} onMouseDown={(event) => event.preventDefault()} onClick={() => command === 'specialCharacter' ? (setActiveEditorId(block.id), setShowSpecialCharacters(true)) : runEditorCommand(command, null, block.id)} className="flex h-8 min-w-8 items-center justify-center px-1 text-base text-slate-600 hover:bg-white hover:text-[#22C55E]">
-                                  {command === 'specialCharacter' ? <span className="font-serif text-lg leading-none" aria-hidden="true">Ω</span> : <i className={label} aria-hidden="true" />}
-                                  {command === 'foreColor' && <span className="ml-0.5 text-xs leading-5">▾</span>}
+                        <div className="mb-3 flex items-start justify-between gap-2 rounded-2xl border border-slate-300 bg-white p-1 shadow-sm">
+                          <div className="flex flex-1 flex-wrap items-center gap-1">
+                          {editorViewMode === 'visual' && (
+                            <div data-color-dropdown className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+                              <select
+                                value={block.data.format || 'p'}
+                                onChange={(event) => handleFormatChange(block.id, event.target.value)}
+                                onMouseDown={() => { setActiveEditorId(block.id); rememberEditorSelection(block.id); }}
+                                title="Text format"
+                                aria-label="Text format"
+                                className="h-7 border-r border-slate-300 bg-white px-2 text-xs text-slate-700 outline-none focus:border-indigo-500"
+                              >
+                                {formatOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                              </select>
+                              {basicToolbar.map(([command, label, title, value]) => (
+                                <button key={command} type="button" title={title} aria-label={title} onMouseDown={(event) => event.preventDefault()} onClick={() => command === 'insertReadMore' ? runEditorCommand('insertReadMore', null, block.id) : runEditorCommand(command, value, block.id)} className={`flex h-8 min-w-8 items-center justify-center px-1 text-base hover:bg-white hover:text-[#22C55E] ${activeCommands[command] ? 'bg-slate-300 text-slate-900' : 'text-slate-600'}`}>
+                                  <i className={label} aria-hidden="true" />
                                 </button>
                               ))}
-                              <button type="button" title="Keyboard shortcuts" aria-label="Keyboard shortcuts" onClick={() => setShowKeyboardShortcuts(true)} className="flex h-8 min-w-8 items-center justify-center px-1 text-base text-slate-600 hover:bg-white hover:text-[#22C55E]">
-                                <i className="fa-solid fa-circle-question" aria-hidden="true" />
-                              </button>
+                              <button type="button" title="Add Media" aria-label="Add Media" onMouseDown={(event) => { event.preventDefault(); setActiveEditorId(block.id); rememberEditorSelection(block.id); }} onClick={() => { setMediaTab('upload'); setShowMediaUrlInput(false); setShowMediaModal(true); }} className="flex h-8 min-w-8 items-center justify-center px-1 text-base text-slate-600 hover:bg-white hover:text-[#22C55E]"><i className="fa-solid fa-images" aria-hidden="true" /></button>
+                              <button type="button" title="Extended toolbar" aria-label="Extended toolbar" onClick={() => setIsExtendedToolbarOpen((current) => !current)} className={`flex h-7 min-w-8 items-center justify-center px-1 text-sm ${isExtendedToolbarOpen ? 'bg-[#22C55E]/10 text-[#22C55E]' : 'text-slate-600 hover:bg-white hover:text-[#22C55E]'}`}><i className="fa-solid fa-sliders" aria-hidden="true" /></button>
                             </div>
                           )}
-                          {colorEditorId === block.id && (
-                            <div data-color-dropdown className="absolute left-5 top-full z-50 w-fit border border-slate-300 bg-white p-2 shadow-md">
-                              <div className="grid w-44 grid-cols-6 gap-1">
-                                {textColors.map((color) => (
-                                  <button key={color} type="button" title={`Use ${color}`} aria-label={`Use ${color}`} onClick={() => applyTextColor(color)} className="h-5 w-5 border border-slate-300" style={{ backgroundColor: color }} />
-                                ))}
-                              </div>
-                              <button type="button" onClick={() => { setCustomColor('#000000'); setShowCustomColor(true); }} className="mt-2 text-xs text-slate-700 hover:text-indigo-600">Custom...</button>
+                          {editorViewMode === 'code' && (
+                            <div className="flex flex-wrap items-center gap-1">
+                              {codeShortcutButtons.map(([command, label, title, value]) => {
+                                const pairedTag = codePairedTags[label];
+                                const displayLabel = pairedTag && codeTagModes[block.id]?.[label] ? `/${label}` : label;
+                                return (
+                                <button
+                                  key={command + label}
+                                  type="button"
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onClick={() => pairedTag ? runEditorCommand('toggleCodeTag', label, block.id) : runEditorCommand(command, value, block.id)}
+                                  title={title}
+                                  aria-label={title}
+                                  className="flex h-7 min-w-7 items-center justify-center rounded-md border border-slate-200 bg-white px-1.5 text-[11px] font-bold text-slate-700 transition hover:border-[#22C55E] hover:text-[#22C55E]"
+                                >
+                                  {displayLabel}
+                                </button>
+                                );
+                              })}
                             </div>
                           )}
+                          </div>
+                          <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+                            <button type="button" onClick={() => setEditorViewMode('visual')} className={`rounded-lg px-2 py-1 text-xs font-medium ${editorViewMode === 'visual' ? 'bg-[#22C55E] text-white' : 'text-slate-700 hover:bg-slate-100'}`}>Visual</button>
+                            <button type="button" onClick={switchToCodeView} className={`rounded-lg px-2 py-1 text-xs font-medium ${editorViewMode === 'code' ? 'bg-[#22C55E] text-white' : 'text-slate-700 hover:bg-slate-100'}`}>Code</button>
+                          </div>
                         </div>
-                        <div
-                          ref={(element) => { editorRefs.current[block.id] = element; }}
-                          contentEditable
-                          dir="ltr"
-                          suppressContentEditableWarning
-                          onFocus={() => { setActiveEditorId(block.id); rememberEditorSelection(block.id); }}
-                          onClick={(event) => {
-                            if (handleExistingLinkClick(block.id, event)) return;
-                            if (event.target.closest('a')) event.preventDefault();
-                            selectEditorImage(block.id, event);
-                            rememberEditorSelection(block.id);
-                          }}
-                          onKeyUp={refreshActiveCommands}
-                          onMouseUp={(event) => {
-                            refreshActiveCommands();
-                            if (event.target.tagName === 'IMG') updateBlock(block.id, { text: event.currentTarget.innerHTML });
-                          }}
-                          onKeyDown={(event) => handleEditorKeyDown(block.id, event)}
-                          onPaste={(event) => handleEditorPaste(block.id, event)}
-                          onInput={(event) => handleEditorInput(block.id, event)}
-                          data-placeholder={block.type === 'header' ? 'Write a subtitle...' : block.type === 'quote' ? 'Write a quotation...' : block.type === 'list' ? 'Write a list...' : 'Write your story...'}
-                          className={`post-editor-content block min-h-32 min-w-0 w-full max-w-full resize-y overflow-x-hidden overflow-y-auto break-words whitespace-pre-wrap rounded-3xl border border-slate-200 bg-white p-3 text-left text-slate-900 outline-none transition hover:border-[#22C55E] focus:border-[#22C55E] focus:ring-1 focus:ring-[#22C55E] empty:before:text-slate-400 empty:before:content-[attr(data-placeholder)] ${block.type === 'quote' || block.data.format === 'blockquote' ? 'border-l-4 border-slate-700 pl-4 italic' : ''}`}
-                          style={{ direction: 'ltr', unicodeBidi: 'plaintext', overflowWrap: 'anywhere' }}
-                        />
+                        {editorViewMode === 'visual' && isExtendedToolbarOpen && (
+                          <div className="mb-3 flex flex-wrap items-center gap-1 rounded-2xl border border-slate-300 bg-slate-50 p-1">
+                            {extendedToolbarItems.map(([command, label, title]) => (
+                              <button key={command} type="button" title={title} aria-label={title} onMouseDown={(event) => event.preventDefault()} onClick={() => command === 'specialCharacter' ? (setActiveEditorId(block.id), setShowSpecialCharacters(true)) : runEditorCommand(command, null, block.id)} className="flex h-8 min-w-8 items-center justify-center px-1 text-base text-slate-600 hover:bg-white hover:text-[#22C55E]">
+                                {command === 'specialCharacter' ? <span className="font-serif text-lg leading-none" aria-hidden="true">Ω</span> : <i className={label} aria-hidden="true" />}
+                                {command === 'foreColor' && <span className="ml-0.5 text-xs leading-5">▾</span>}
+                              </button>
+                            ))}
+                            <button type="button" title="Keyboard shortcuts" aria-label="Keyboard shortcuts" onClick={() => setShowKeyboardShortcuts(true)} className="flex h-8 min-w-8 items-center justify-center px-1 text-base text-slate-600 hover:bg-white hover:text-[#22C55E]">
+                              <i className="fa-solid fa-circle-question" aria-hidden="true" />
+                            </button>
+                          </div>
+                        )}
+                        {editorViewMode === 'visual' && colorEditorId === block.id && (
+                          <div data-color-dropdown className="absolute left-5 top-full z-50 w-fit border border-slate-300 bg-white p-2 shadow-md">
+                            <div className="grid w-44 grid-cols-6 gap-1">
+                              {textColors.map((color) => (
+                                <button key={color} type="button" title={`Use ${color}`} aria-label={`Use ${color}`} onClick={() => applyTextColor(color)} className="h-5 w-5 border border-slate-300" style={{ backgroundColor: color }} />
+                              ))}
+                            </div>
+                            <button type="button" onClick={() => { setCustomColor('#000000'); setShowCustomColor(true); }} className="mt-2 text-xs text-slate-700 hover:text-indigo-600">Custom...</button>
+                          </div>
+                        )}
+                        {editorViewMode === 'code' ? (
+                          <textarea
+                            ref={(element) => { editorRefs.current[block.id] = element; }}
+                            value={codeViewValues[block.id] ?? prettyPrintHtml(normalizeVisualHtml(block.data.text || ''))}
+                            onChange={(event) => {
+                              const nextText = event.target.value;
+                              setCodeViewValues((current) => ({ ...current, [block.id]: nextText }));
+                              updateBlock(block.id, { text: nextText });
+                            }}
+                            spellCheck={false}
+                            className="block min-h-[220px] w-full resize-y overflow-x-auto overflow-y-hidden rounded-3xl border border-slate-200 bg-white p-3 font-mono text-[13px] leading-6 text-slate-800 outline-none transition focus:border-[#22C55E] focus:ring-1 focus:ring-[#22C55E]"
+                            style={{ height: 220, whiteSpace: 'pre-wrap' }}
+                          />
+                        ) : (
+                          <div
+                            ref={(element) => { editorRefs.current[block.id] = element; }}
+                            contentEditable
+                            dir="ltr"
+                            suppressContentEditableWarning
+                            onFocus={() => { setActiveEditorId(block.id); rememberEditorSelection(block.id); }}
+                            onClick={(event) => {
+                              if (handleExistingLinkClick(block.id, event)) return;
+                              if (event.target.closest('a')) event.preventDefault();
+                              selectEditorImage(block.id, event);
+                              rememberEditorSelection(block.id);
+                            }}
+                            onKeyUp={refreshActiveCommands}
+                            onMouseUp={(event) => {
+                              refreshActiveCommands();
+                              if (event.target.tagName === 'IMG') updateBlock(block.id, { text: event.currentTarget.innerHTML });
+                            }}
+                            onKeyDown={(event) => handleEditorKeyDown(block.id, event)}
+                            onPaste={(event) => handleEditorPaste(block.id, event)}
+                            onInput={(event) => handleEditorInput(block.id, event)}
+                            data-placeholder={block.type === 'header' ? 'Write a subtitle...' : block.type === 'quote' ? 'Write a quotation...' : block.type === 'list' ? 'Write a list...' : 'Write your story...'}
+                            className={`post-editor-content block min-h-32 min-w-0 w-full max-w-full resize-y overflow-x-hidden overflow-y-auto break-words whitespace-pre-wrap rounded-3xl border border-slate-200 bg-white p-3 text-left text-slate-900 outline-none transition hover:border-[#22C55E] focus:border-[#22C55E] focus:ring-1 focus:ring-[#22C55E] empty:before:text-slate-400 empty:before:content-[attr(data-placeholder)] ${block.type === 'quote' || block.data.format === 'blockquote' ? 'border-l-4 border-slate-700 pl-4 italic' : ''}`}
+                            style={{ direction: 'ltr', unicodeBidi: 'plaintext', overflowWrap: 'anywhere' }}
+                          />
+                        )}
                         {linkEditor.id === block.id && linkEditorRect && (
                           <div className="fixed z-40 w-[min(100%-1rem,30rem)] border border-[#22C55E]/50 bg-white p-2 shadow-md" style={{ left: linkEditorRect.left, top: linkEditorRect.top }}>
                             <div className="flex items-center gap-2">
@@ -1599,7 +2265,7 @@ const PostEditor = () => {
           {/* Right column: sidebar */}
           <aside className="self-start lg:col-span-4">
             <div className="sticky top-28 pr-1">
-              <div className="overflow-hidden rounded-3xl border border-slate-300 bg-white p-3 shadow-sm">
+              <div className="overflow-hidden rounded-xl border border-slate-300 bg-white p-3 shadow-sm">
               <div className="mx-2 border-b border-slate-100 pb-3">
                 <div className="flex items-center justify-between px-3 py-2">
                   <h3 className="text-sm font-semibold text-slate-800">Publish</h3>
@@ -1609,8 +2275,8 @@ const PostEditor = () => {
                 </div>
                 {!collapsedPanels.publish && <>
                 <div className="flex justify-between gap-3 px-3 py-3">
-                  <button type="button" onClick={handleSaveDraft} className="border border-[#22C55E] px-4 py-2 text-xs text-[#22C55E] hover:bg-emerald-50">Save Draft</button>
-                  <button type="button" onClick={handlePreview} className="border border-[#22C55E] px-4 py-2 text-xs text-[#22C55E] hover:bg-emerald-50">Preview</button>
+                  <button type="button" onClick={handleSaveDraft} className="rounded-xl border border-[#22C55E] px-4 py-2 text-xs text-[#22C55E] hover:bg-emerald-50">Save Draft</button>
+                  <button type="button" onClick={handlePreview} className="rounded-xl border border-[#22C55E] px-4 py-2 text-xs text-[#22C55E] hover:bg-emerald-50">Preview</button>
                 </div>
                 <div className="px-3 pb-3">
                   <div className="flex items-center gap-1 text-xs text-slate-600">
@@ -1650,7 +2316,7 @@ const PostEditor = () => {
                 </div>
                 <div className="flex justify-end border-t border-slate-100 px-3 py-3">
                   {isEdit && <button type="button" onClick={handleMoveToTrash} className="mr-auto text-xs text-[#22C55E] underline hover:text-emerald-700">Move to Trash</button>}
-                  <button type="button" onClick={handleSubmit} className="bg-[#22C55E] px-5 py-2 text-xs font-semibold text-white transition-colors duration-200 hover:bg-[#1fae58]">{isEdit ? 'Update' : 'Publish'}</button>
+                  <button type="button" onClick={handleSubmit} className="rounded-xl bg-[#22C55E] px-5 py-2 text-xs font-semibold text-white transition-colors duration-200 hover:bg-[#1fae58]">{isEdit ? 'Update' : 'Publish'}</button>
                 </div>
                 </>}
               </div>
@@ -1663,13 +2329,13 @@ const PostEditor = () => {
                 </div>
                 {!collapsedPanels.categories && <>
                 <div className="flex border-b border-slate-200 px-3 pt-2 text-xs">
-                  <button type="button" onClick={() => setCategoryTab('all')} className={`border border-b-0 px-3 py-2 ${categoryTab === 'all' ? 'bg-white text-slate-700' : 'border-transparent text-[#22C55E]'}`}>All Categories</button>
-                  <button type="button" onClick={() => setCategoryTab('used')} className={`border border-b-0 px-3 py-2 ${categoryTab === 'used' ? 'bg-white text-slate-700' : 'border-transparent text-[#22C55E]'}`}>Most Used</button>
+                  <button type="button" onClick={() => setCategoryTab('all')} className={`rounded-t-xl border border-b-0 px-3 py-2 ${categoryTab === 'all' ? 'bg-white text-slate-700' : 'border-transparent text-[#22C55E]'}`}>All Categories</button>
+                  <button type="button" onClick={() => setCategoryTab('used')} className={`rounded-t-xl border border-b-0 px-3 py-2 ${categoryTab === 'used' ? 'bg-white text-slate-700' : 'border-transparent text-[#22C55E]'}`}>Most Used</button>
                 </div>
-                <div className="mx-3 my-3 max-h-48 overflow-y-auto border border-slate-200 p-3">
+                <div className="mx-3 my-3 max-h-48 overflow-y-auto rounded-xl border border-slate-200 p-3">
                   {visibleCategories.map((category) => (
                     <label key={category} className="flex items-center gap-2 py-1 text-xs text-slate-700">
-                      <input type="checkbox" checked={form.category === category} onChange={() => { setForm((current) => ({ ...current, category })); setIsDirty(true); }} />
+                      <input type="checkbox" checked={getCategories().includes(category)} onChange={() => toggleCategory(category)} className="green-checkbox" />
                       {category}
                     </label>
                   ))}
@@ -1678,12 +2344,12 @@ const PostEditor = () => {
                   <button type="button" onClick={() => setShowAddCategory((current) => !current)} className="text-xs text-[#22C55E] underline">+ Add Category</button>
                   {showAddCategory && (
                     <div className="mt-3 space-y-2">
-                      <input value={newCategory} onChange={(event) => setNewCategory(event.target.value)} autoFocus type="text" className="w-full border border-slate-300 px-2 py-2 text-xs outline-none focus:border-[#22C55E]" />
-                      <select value={parentCategory} onChange={(event) => setParentCategory(event.target.value)} className="w-full border-2 border-[#22C55E] px-2 py-2 text-xs outline-none">
+                      <input value={newCategory} onChange={(event) => setNewCategory(event.target.value)} autoFocus type="text" className="w-full rounded-xl border border-slate-300 px-2 py-2 text-xs outline-none focus:border-[#22C55E]" />
+                      <select value={parentCategory} onChange={(event) => setParentCategory(event.target.value)} className="w-full rounded-xl border-2 border-[#22C55E] px-2 py-2 text-xs outline-none">
                         <option value="">— Parent Category —</option>
                         {categoryList.map((category) => <option key={category} value={category}>{category}</option>)}
                       </select>
-                      <button type="button" onClick={handleAddCategory} className="border border-[#22C55E] px-3 py-2 text-xs text-[#22C55E] hover:bg-emerald-50">Add Category</button>
+                      <button type="button" onClick={handleAddCategory} className="rounded-xl border border-[#22C55E] px-3 py-2 text-xs text-[#22C55E] hover:bg-emerald-50">Add Category</button>
                     </div>
                   )}
                 </div>
@@ -1698,9 +2364,9 @@ const PostEditor = () => {
                 </div>
                 {!collapsedPanels.tags && <>
                 <div className="flex items-start gap-2 px-3 py-3">
-                  <div className="flex min-h-9 flex-1 flex-wrap items-center gap-1 border border-slate-300 bg-white px-2 py-1 focus-within:border-[#22C55E]">
+                  <div className="flex min-h-9 flex-1 flex-wrap items-center gap-1 rounded-xl border border-slate-300 bg-white px-2 py-1 focus-within:border-[#22C55E]">
                     {getTags().map((tag) => (
-                      <span key={tag} className="inline-flex items-center gap-2 bg-slate-200 px-2 py-1 text-xs text-slate-700">
+                      <span key={tag} className="inline-flex items-center gap-2 rounded-lg bg-slate-200 px-2 py-1 text-xs text-slate-700">
                         {tag}
                         <button type="button" onClick={() => handleRemoveTag(tag)} className="text-base leading-none text-slate-600 hover:text-red-600" aria-label={`Remove ${tag} tag`}>×</button>
                       </span>
@@ -1714,7 +2380,7 @@ const PostEditor = () => {
                       aria-label="Add tag"
                     />
                   </div>
-                  <button type="button" onClick={handleAddTag} className="border border-[#22C55E] px-4 py-2 text-xs text-[#22C55E] hover:bg-emerald-50">Add</button>
+                  <button type="button" onClick={handleAddTag} className="rounded-xl border border-[#22C55E] px-4 py-2 text-xs text-[#22C55E] hover:bg-emerald-50">Add</button>
                 </div>
                 <div className="px-3 pb-3 text-xs text-slate-500">Separate tags with commas</div>
                 </>}
@@ -1728,7 +2394,7 @@ const PostEditor = () => {
                 </div>
                 {!collapsedPanels.featuredImage && <>
                 <div className="p-3">
-                  <label className="block cursor-pointer border border-dashed border-slate-300 bg-slate-50 text-center transition hover:border-[#22C55E]">
+                  <label className="block cursor-pointer rounded-xl border border-dashed border-slate-300 bg-slate-50 text-center transition hover:border-[#22C55E]">
                     {form.image ? (
                       <img src={form.image} alt="Featured preview" className="h-36 w-full object-cover" />
                     ) : (

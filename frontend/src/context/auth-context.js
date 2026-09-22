@@ -1,4 +1,5 @@
 import { createContext, useState, useEffect, useRef } from 'react';
+import { deletePostApi } from '../services/api';
 
 const AuthContext = createContext();
 const DELETED_POSTS_KEY = 'testsite-deleted-post-ids';
@@ -236,7 +237,18 @@ export const AuthProvider = ({ children }) => {
     return nextUser;
   });
 
-  const deletePost = (postId) => {
+  const deletePost = async (postId) => {
+    const authKey = user?.authKey || user?.auth_key;
+    if (authKey) {
+      try {
+        await deletePostApi(postId, authKey);
+      } catch (error) {
+        const status = error?.response?.status;
+        if (status !== 403 && status !== 404) throw error;
+        console.warn('Post is not available in the backend; removing the local copy.', postId);
+      }
+    }
+
     const deletedPostIds = getDeletedPostIds();
     deletedPostIds.add(String(postId));
     setStorageItemSafely(DELETED_POSTS_KEY, JSON.stringify([...deletedPostIds]));

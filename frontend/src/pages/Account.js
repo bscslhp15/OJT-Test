@@ -2,10 +2,11 @@ import { useContext, useEffect, useState, useRef } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../components/page-header';
 import AuthContext, { getDeletedPostIds } from '../context/auth-context';
-import { updateProfile as updateProfileRequest, requestPasswordChange } from '../services/api';
-import { getEditPostUrl, getPostUrl } from '../services/post-url';
-import { createAccountSlug, getAccountUrl, getPostAuthorUrl, getProfileUrl } from '../services/account-url';
+import { fetchComments, updatePost as updatePostRequest, updateProfile as updateProfileRequest, requestPasswordChange } from '../services/api';
+import { createPostSlug, getEditPostUrl, getPostUrl } from '../services/post-url';
+import { createAccountSlug, createAuthorSlug, getAccountUrl, getPostAuthorUrl, getProfileUrl } from '../services/account-url';
 import { isPostVisible } from '../services/post-status';
+import { loadPublicProfile } from '../services/public-data';
 
 const firstRichTextToPlainText = (html) => {
   const container = document.createElement('div');
@@ -39,6 +40,12 @@ const getReadMoreExcerpt = (html) => {
   return (container.textContent || '').replace(/\s+/g, ' ').trim();
 };
 
+const getPostSortTimestamp = (post) => {
+  const rawValue = post?.publishedAt || post?.createdAt || post?.date || '';
+  const parsed = new Date(rawValue).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const getPostExcerpt = (post) => {
   if (typeof post.content !== 'string') return 'No description available';
 
@@ -65,7 +72,10 @@ const getPostExcerpt = (post) => {
   return text ? firstTwoSentences(text) : 'No description available';
 };
 
-const getCommentCount = (postId) => {
+const getCommentCount = (postId, commentCounts = {}) => {
+  if (Object.prototype.hasOwnProperty.call(commentCounts, String(postId))) {
+    return commentCounts[String(postId)];
+  }
   try {
     const savedComments = JSON.parse(localStorage.getItem(`testsite-comments-${postId}`) || '[]');
     return Array.isArray(savedComments) ? savedComments.length : 0;
@@ -93,6 +103,15 @@ const ProfileValue = ({ value }) => (
   </span>
 );
 
+const getSocialHandleValue = (value) => {
+  try {
+    const parsed = new URL(String(value).match(/^https?:\/\//i) ? value : `https://${value}`);
+    return parsed.pathname.replace(/^\/+|\/+$/g, '') || parsed.hostname;
+  } catch (error) {
+    return String(value || '').replace(/^@/, '').replace(/^\/+|\/+$/g, '');
+  }
+};
+
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
 const getPersistedProfileBySlug = (slug) => {
@@ -102,7 +121,8 @@ const getPersistedProfileBySlug = (slug) => {
     if (!key?.startsWith('testsite-user-persist-')) continue;
     try {
       const persistedUser = JSON.parse(localStorage.getItem(key) || 'null');
-      if (createAccountSlug(persistedUser?.username || persistedUser?.email?.split('@')[0]) === slug) {
+      if (createAccountSlug(persistedUser?.username || persistedUser?.email?.split('@')[0]) === slug
+        || createAuthorSlug([persistedUser?.firstName, persistedUser?.lastName].filter(Boolean).join(' ')) === slug) {
         const posts = persistedUser.email
           ? JSON.parse(localStorage.getItem(`testsite-posts-${persistedUser.email.toLowerCase()}`) || '[]')
           : [];
@@ -135,7 +155,8 @@ const getPersistedProfileBySlug = (slug) => {
 };
 
 const PublicProfile = ({ profile }) => {
-  const profilePosts = (Array.isArray(profile.posts) ? profile.posts : []).filter(isPostVisible);
+  const profilePosts = (Array.isArray(profile.posts) ? profile.posts : []).filter(isPostVisible).sort((left, right) => getPostSortTimestamp(right) - getPostSortTimestamp(left));
+  const [commentCounts, setCommentCounts] = useState({});
   const profilePhoto = profile.profile_photo || (profile.email ? localStorage.getItem(`testsite-profile-${profile.email.toLowerCase()}`) : null);
   const fullName = [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim() || profile.name || profile.username || 'User';
   const socialLinks = [
@@ -154,28 +175,75 @@ const PublicProfile = ({ profile }) => {
     }
   };
 
+  useEffect(() => {
+    let isMounted = true;
+    const loadCommentCounts = async () => {
+      const entries = await Promise.all(profilePosts.map(async (post) => {
+        try {
+          const { data } = await fetchComments(post.id);
+          return [String(post.id), Array.isArray(data) ? data.length : 0];
+        } catch (error) {
+          return null;
+        }
+      }));
+      if (isMounted) setCommentCounts(Object.fromEntries(entries.filter(Boolean)));
+    };
+    if (profilePosts.length > 0) loadCommentCounts();
+    return () => { isMounted = false; };
+  }, [profilePosts.map((post) => String(post.id)).join(',')]);
+
   return (
     <>
       <PageHeader title={fullName} subtitle="Profile" />
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_2fr]">
-          <div className="rounded-3xl bg-white p-8 text-center shadow-xl">
+        <div className="grid items-start gap-6 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_759px] xl:gap-8">
+          <div className="w-full rounded-3xl bg-white p-5 text-center shadow-xl sm:p-8 xl:p-10">
             {profilePhoto ? <img src={profilePhoto} alt={profile.username || 'Profile'} className="mx-auto h-32 w-32 rounded-full border-4 border-emerald-500 object-cover" /> : <div className="mx-auto flex h-32 w-32 items-center justify-center rounded-full bg-emerald-600 text-4xl font-semibold text-white">{(profile.username || 'A')[0].toUpperCase()}</div>}
             <h2 className="mt-5 text-2xl font-semibold text-slate-900">{fullName}</h2>
-            <div className="mt-5 border-t border-slate-100 pt-5 text-left">
+            <div className="relative mt-5 grid gap-2 border-t border-slate-100 pt-5 text-center sm:grid-cols-2 before:absolute before:bottom-0 before:left-1/2 before:top-5 before:w-px before:-translate-x-1/2 before:bg-slate-200">
+              <ProfileValue value={profile.email} />
+              <ProfileValue value={profile.username} />
+              <ProfileValue value={profile.phone} />
+              <ProfileValue value={profile.address} />
+            </div>
+            <div className="mt-6 border-t border-slate-100 pt-5 text-left">
+              <h3 className="text-sm font-semibold text-slate-900">Social links</h3>
+              <div className="mt-4 border-t border-slate-300" />
               {socialLinks.length > 0 && (
-                <ul className="space-y-3 text-sm text-slate-700">
-                  {socialLinks.map(([name, icon, prefix, value]) => <li key={name} className="flex items-center gap-3"><span className="text-emerald-600">•</span><i className={`fab ${icon} text-emerald-600`} aria-hidden="true" /><a href={value.startsWith('http') ? value : `https://${prefix}${getSocialHandle(value)}`} target="_blank" rel="noreferrer" className="break-all hover:text-emerald-600">{prefix}{getSocialHandle(value)}</a></li>)}
+                <ul className="mt-5 space-y-3 text-sm text-slate-700">
+                  {socialLinks.map(([name, icon, prefix, value]) => (
+                    <li key={name} className="flex min-w-0 items-center gap-3">
+                      <i className={`fab ${icon} w-4 shrink-0 text-[#22C55E]`} aria-hidden="true" />
+                      <a href={value.startsWith('http') ? value : `https://${prefix}${getSocialHandle(value)}`} target="_blank" rel="noreferrer" className="min-w-0 break-all hover:text-emerald-600">
+                        {prefix}{getSocialHandle(value)}
+                      </a>
+                    </li>
+                  ))}
                 </ul>
               )}
-              {profile.bio && <div className="mt-6 border-t border-slate-100 pt-5 text-left text-sm leading-6 text-slate-600"><p>{profile.bio}</p></div>}
+              {profile.bio && (
+                <div className="mt-6 border-t border-slate-100 pt-5 text-left">
+                  <h3 className="text-sm font-semibold text-slate-900">Bio</h3>
+                  <div className="mt-4 border-t border-slate-300" />
+                  <p className="mt-5 whitespace-pre-wrap text-sm leading-6 text-slate-600">{profile.bio}</p>
+                </div>
+              )}
             </div>
           </div>
-          <div className="space-y-8">
+          <div className="w-full xl:w-[759px] xl:justify-self-end space-y-8">
             {profilePosts.map((post) => (
-              <article key={post.id} className="overflow-hidden rounded-3xl bg-white shadow-lg">
-                {(post.featuredImage || post.image) && <Link to={getPostUrl(post)} className="block"><img src={post.featuredImage || post.image} alt={post.title} className="h-80 w-full object-cover" /></Link>}
-                <div className="p-8"><h2 className="text-2xl font-semibold text-slate-900"><Link to={getPostUrl(post)} className="hover:text-emerald-600">{post.title}</Link></h2><p className="mt-3 text-sm text-slate-500">{post.date}</p><p className="mt-4 text-slate-600">{getPostExcerpt(post)}</p><div className="mt-6 flex justify-end"><Link to={getPostUrl(post)} className="rounded-full bg-[#22C55E] px-5 py-2 text-sm font-semibold text-white hover:bg-[#1fae58]">Read More</Link></div></div>
+              <article key={post.id} className="group relative overflow-hidden rounded-3xl bg-white shadow-lg">
+                {(post.featuredImage || post.image) && <Link to={getPostUrl(post)} className="block"><img src={post.featuredImage || post.image} alt={post.title} className="h-80 w-full object-cover transition duration-200 hover:brightness-95" /></Link>}
+                <div className="p-8">
+                  <h2 className="text-2xl font-semibold text-slate-900"><Link to={getPostUrl(post)} className="transition hover:text-emerald-600">{post.title}</Link></h2>
+                  <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-600">
+                    <span><i className="fas fa-user mr-1" aria-hidden="true" />{post.author || fullName}</span>
+                    <span><i className="far fa-calendar mr-1" aria-hidden="true" />{post.date}</span>
+                    <Link to={`${getPostUrl(post)}#comments`} className="hover:text-emerald-600"><i className="far fa-comments mr-1" aria-hidden="true" />{commentCounts[String(post.id)] ?? getCommentCount(post.id)} Comments</Link>
+                  </div>
+                  <p className="mt-4 text-slate-600">{getPostExcerpt(post)}</p>
+                  <div className="mt-3 flex items-center gap-1 text-xs opacity-100 select-none"><Link to={getPostUrl(post)} className="cursor-pointer text-[#22C55E] hover:underline">View</Link></div>
+                </div>
               </article>
             ))}
           </div>
@@ -186,22 +254,31 @@ const PublicProfile = ({ profile }) => {
 };
 
 const Account = () => {
-  const { user, updateProfile } = useContext(AuthContext);
-  const { username: profileSlug } = useParams();
+  const { user, updateProfile, deletePost } = useContext(AuthContext);
+  const { username, authorSlug } = useParams();
+  const profileSlug = authorSlug || username;
   const location = useLocation();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
+  const [trashConfirmPostId, setTrashConfirmPostId] = useState(null);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [passwordChangeError, setPasswordChangeError] = useState('');
   const [passwordChangeMessage, setPasswordChangeMessage] = useState('');
   const [passwordRequestExpiresAt, setPasswordRequestExpiresAt] = useState(0);
   const [passwordRequestRemaining, setPasswordRequestRemaining] = useState(0);
+  const [publicProfileState, setPublicProfileState] = useState(null);
+  const [quickEditPostId, setQuickEditPostId] = useState(null);
+  const [quickEditForm, setQuickEditForm] = useState({});
+  const [commentCounts, setCommentCounts] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
   const postsPerPage = 10;
-  const isPublicProfile = location.search === '?view=profile';
-  const publicProfile = !user || createAccountSlug(user.username || user.email?.split('@')[0]) !== profileSlug
-    ? getPersistedProfileBySlug(profileSlug)
-    : user;
+  const isOwnProfile = Boolean(user && profileSlug && createAccountSlug(user.username || user.email?.split('@')[0]) === profileSlug);
+  const isPublicProfile = Boolean(authorSlug) || location.search === '?view=profile' || Boolean(profileSlug && !isOwnProfile);
+  const publicProfile = isPublicProfile
+    ? (publicProfileState || getPersistedProfileBySlug(profileSlug) || user)
+    : (!user || createAccountSlug(user.username || user.email?.split('@')[0]) !== profileSlug
+      ? (publicProfileState || getPersistedProfileBySlug(profileSlug))
+      : user);
   const savedProfilePhoto = user?.profile_photo || (user?.email ? localStorage.getItem(`testsite-profile-${user.email.toLowerCase()}`) : null);
   const [photoPreview, setPhotoPreview] = useState(savedProfilePhoto);
   const photoInputRef = useRef(null);
@@ -228,10 +305,43 @@ const Account = () => {
   });
 
   useEffect(() => {
-    if (user && !isPublicProfile && location.pathname !== getAccountUrl(user)) {
+    if (user && !profileSlug && !isPublicProfile && location.pathname !== getAccountUrl(user)) {
       navigate(getAccountUrl(user), { replace: true });
     }
-  }, [user, isPublicProfile, location.pathname, navigate]);
+  }, [user, profileSlug, isPublicProfile, location.pathname, navigate]);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (profileSlug) {
+      loadPublicProfile(profileSlug).then((profile) => {
+        if (isMounted) setPublicProfileState(profile);
+      });
+    }
+    return () => { isMounted = false; };
+  }, [isPublicProfile, profileSlug, user]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const posts = [
+      ...(Array.isArray(publicProfileState?.posts) ? publicProfileState.posts : []),
+      ...(Array.isArray(user?.posts) ? user.posts : [])
+    ].filter((post, index, allPosts) => allPosts.findIndex((item) => String(item.id) === String(post.id)) === index);
+
+    const loadCommentCounts = async () => {
+      const entries = await Promise.all(posts.map(async (post) => {
+        try {
+          const { data } = await fetchComments(post.id);
+          return [String(post.id), Array.isArray(data) ? data.length : 0];
+        } catch (error) {
+          return null;
+        }
+      }));
+      if (isMounted) setCommentCounts(Object.fromEntries(entries.filter(Boolean)));
+    };
+
+    if (posts.length > 0) loadCommentCounts();
+    return () => { isMounted = false; };
+  }, [publicProfileState?.posts, user?.posts]);
 
   useEffect(() => {
     if (!user?.email) return undefined;
@@ -285,6 +395,11 @@ const Account = () => {
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm({ ...form, [name]: value });
+  };
+
+  const handleSocialChange = (event) => {
+    const { name, value } = event.target;
+    setForm((current) => ({ ...current, [name]: getSocialHandleValue(value) }));
   };
 
   const handlePasswordFormChange = (event) => {
@@ -399,12 +514,109 @@ const Account = () => {
   const deletedPostIds = getDeletedPostIds();
   const drafts = JSON.parse(localStorage.getItem(draftKey) || '[]')
     .filter((draft) => !deletedPostIds.has(String(draft.id)));
-  const posts = [
-    ...(user.posts || []).filter((post) => !deletedPostIds.has(String(post.id))),
-    ...(Array.isArray(drafts) ? drafts.filter((draft) => !(user.posts || []).some((post) => String(post.id) === String(draft.id))) : [])
+  const publicPosts = Array.isArray(publicProfileState?.posts) ? publicProfileState.posts : [];
+  const localPosts = [
+    ...(user.posts || []),
+    ...(Array.isArray(drafts) ? drafts : [])
   ];
+  const posts = [
+    ...publicPosts,
+    ...localPosts.filter((post) => !publicPosts.some((remotePost) => String(remotePost.id) === String(post.id)))
+  ]
+    .filter((post) => !deletedPostIds.has(String(post.id)))
+    .filter((post, index, allPosts) => allPosts.findIndex((item) => String(item.id) === String(post.id)) === index)
+    .sort((left, right) => getPostSortTimestamp(right) - getPostSortTimestamp(left));
   const totalPages = Math.max(1, Math.ceil(posts.length / postsPerPage));
   const paginatedPosts = posts.slice((currentPage - 1) * postsPerPage, currentPage * postsPerPage);
+
+  const handleConfirmTrashDelete = () => {
+    if (!trashConfirmPostId) return;
+    deletePost(trashConfirmPostId);
+    setTrashConfirmPostId(null);
+  };
+
+  const beginQuickEdit = (post) => {
+    const parsedDate = post?.publishedAt ? new Date(post.publishedAt) : new Date(post?.date || Date.now());
+    const validDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+
+    setQuickEditPostId(post.id);
+    setQuickEditForm({
+      title: post.title || '',
+      slug: post.slug || createPostSlug(post.title || ''),
+      date: validDate.toISOString().slice(0, 16),
+      category: post.category || 'Uncategorized',
+      tags: Array.isArray(post.tags) ? post.tags.join(', ') : (post.tags || ''),
+      allowComments: post.allowComments !== false,
+      status: post.status || 'published'
+    });
+  };
+
+  const saveQuickEdit = async (post) => {
+    if (!user) return;
+
+    const nextDate = quickEditForm.date ? new Date(quickEditForm.date) : new Date(post?.publishedAt || post?.date || Date.now());
+    const normalizedTitle = String(quickEditForm.title || post.title || 'Untitled').trim() || 'Untitled';
+    const normalizedSlug = String(quickEditForm.slug || '').trim() || createPostSlug(normalizedTitle) || String(post.id || 'post');
+    const normalizedCategory = String(quickEditForm.category || post.category || 'Uncategorized').trim() || 'Uncategorized';
+    const nextPost = {
+      ...post,
+      id: post.id,
+      title: normalizedTitle,
+      slug: normalizedSlug,
+      category: normalizedCategory,
+      status: quickEditForm.status || post.status || 'published',
+      tags: String(quickEditForm.tags || '')
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+      allowComments: quickEditForm.allowComments !== false,
+      date: nextDate.toLocaleDateString(),
+      publishedAt: nextDate.toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const authKey = user.authKey || user.auth_key;
+    if (authKey && /^\d+$/.test(String(post.id))) {
+      try {
+        await updatePostRequest(post.id, {
+          authKey,
+          title: normalizedTitle,
+          content: post.content || '',
+          image: post.featuredImage || post.image || '',
+          slug: normalizedSlug,
+          category: normalizedCategory,
+          tags: nextPost.tags,
+          status: nextPost.status
+        });
+      } catch (error) {
+        console.warn('Backend quick edit failed; keeping the local update.', error);
+      }
+    }
+
+    const updatePostsList = (posts) => {
+      const safePosts = Array.isArray(posts) ? posts : [];
+      const foundMatch = safePosts.some((item) => String(item.id) === String(post.id));
+      return foundMatch
+        ? safePosts.map((item) => (String(item.id) === String(post.id) ? { ...item, ...nextPost, id: item.id } : item))
+        : [nextPost, ...safePosts];
+    };
+
+    const globalPosts = JSON.parse(localStorage.getItem('testsite-posts') || '[]');
+    const userKey = `testsite-posts-${String(user.email || user.username || 'anonymous').toLowerCase()}`;
+    const savedUserPosts = JSON.parse(localStorage.getItem(userKey) || '[]');
+    const draftKey = `testsite-drafts-${String(user.email || user.username || 'anonymous').toLowerCase()}`;
+    const drafts = JSON.parse(localStorage.getItem(draftKey) || '[]');
+    const nextGlobalPosts = updatePostsList(globalPosts);
+    const nextUserPosts = updatePostsList(user.posts || []);
+    const nextDrafts = updatePostsList(drafts);
+
+    localStorage.setItem('testsite-posts', JSON.stringify(nextGlobalPosts));
+    localStorage.setItem(userKey, JSON.stringify(nextUserPosts));
+    localStorage.setItem(draftKey, JSON.stringify(nextDrafts));
+
+    updateProfile({ posts: nextUserPosts });
+    setQuickEditPostId(null);
+  };
 
   return (
     <>
@@ -413,32 +625,39 @@ const Account = () => {
         <div className="grid items-start gap-6 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_759px] xl:gap-8">
           {/* Left Column - Profile Form */}
           <div className="w-full rounded-3xl bg-white p-5 shadow-xl self-start sm:p-8 xl:p-10">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="ml-auto flex w-full items-center gap-2 sm:w-auto">
+            {!isEditing ? (
+              <div className="flex justify-end">
                 <button
-                  onClick={() => setIsEditing(!isEditing)}
-                  className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#22C55E] px-4 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#1fae58] sm:flex-none"
+                  onClick={() => setIsEditing(true)}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#22C55E] px-4 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#1fae58]"
                   type="button"
-                  aria-label={isEditing ? 'Cancel editing profile' : 'Edit profile'}
-                  title={isEditing ? 'Cancel editing' : 'Edit profile'}
+                  aria-label="Edit profile"
+                  title="Edit profile"
                 >
-                  <i className={`fas ${isEditing ? 'fa-times' : 'fa-pen'} text-base`} aria-hidden="true"></i>
-                  <span>{isEditing ? 'Cancel' : 'Edit profile'}</span>
+                  <i className="fas fa-pen text-base" aria-hidden="true"></i>
+                  <span>Edit profile</span>
                 </button>
-                {isEditing && (
-                  <button
-                    onClick={handleSave}
-                    className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors duration-200 hover:border-[#22C55E] hover:text-[#22C55E] sm:flex-none"
-                    type="button"
-                    aria-label="Save profile"
-                    title="Save profile"
-                  >
-                    <i className="fas fa-save text-base" aria-hidden="true"></i>
-                    <span>Save</span>
-                  </button>
-                )}
               </div>
-            </div>
+            ) : (
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={handleSave}
+                  type="button"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#22C55E] px-5 py-3 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#1fae58]"
+                >
+                  <i className="fas fa-save" aria-hidden="true"></i>
+                  <span>Save Profile</span>
+                </button>
+                <button
+                  onClick={handleCancel}
+                  type="button"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition-colors duration-200 hover:bg-slate-50"
+                >
+                  <i className="fas fa-times" aria-hidden="true"></i>
+                  <span>Cancel</span>
+                </button>
+              </div>
+            )}
 
             {/* Form Fields - Two Columns */}
             <div className="mt-8">
@@ -500,8 +719,9 @@ const Account = () => {
                   )}
                 </div>
 
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900">Security</h3>
+                {isEditing && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Security</h3>
                   <div className="mt-4 border-t border-slate-300" />
 
                   {!showPasswordForm && !passwordChangeMessage && (
@@ -578,85 +798,68 @@ const Account = () => {
                       </p>
                     </div>
                   )}
-                </div>
+                  </div>
+                )}
 
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900">Social links</h3>
                   <div className="mt-4 border-t border-slate-300" />
-                  <div className="mt-6 space-y-3">
-                    <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
-                      <span className="flex w-full shrink-0 items-center whitespace-nowrap rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 sm:w-36 sm:py-0">
-                        <i className="fab fa-facebook mr-2 text-[#22C55E]"></i> facebook.com/
-                      </span>
-                      <input
-                        name="facebook"
-                        value={form.facebook}
-                        onChange={handleChange}
-                        disabled={!isEditing}
-                        type="text"
-                        placeholder="yourprofile"
-                        className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-900 placeholder-slate-500 focus:border-[#22C55E] focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20 disabled:bg-slate-50"
-                      />
+                  {isEditing ? (
+                    <div className="mt-6 space-y-3">
+                      {[
+                        ['facebook', 'fa-facebook', 'facebook.com/', 'yourprofile'],
+                        ['twitter', 'fa-twitter', 'twitter.com/', 'yourhandle'],
+                        ['instagram', 'fa-instagram', 'instagram.com/', 'yourprofile'],
+                        ['linkedin', 'fa-linkedin', 'linkedin.com/in/', 'yourprofile']
+                      ].map(([name, icon, prefix, placeholder]) => (
+                        <div key={name} className="flex min-w-0 flex-col gap-2 sm:flex-row">
+                          <span className="flex w-full shrink-0 items-center whitespace-nowrap rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 sm:w-36 sm:py-0">
+                            <i className={`fab ${icon} mr-2 text-[#22C55E]`} /> {prefix}
+                          </span>
+                          <input
+                            name={name}
+                            value={getSocialHandleValue(form[name])}
+                            onChange={handleSocialChange}
+                            type="text"
+                            placeholder={placeholder}
+                            className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-900 placeholder-slate-500 focus:border-[#22C55E] focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20"
+                          />
+                        </div>
+                      ))}
                     </div>
-
-                    <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
-                      <span className="flex w-full shrink-0 items-center whitespace-nowrap rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 sm:w-36 sm:py-0">
-                        <i className="fab fa-twitter mr-2 text-[#22C55E]"></i> twitter.com/
-                      </span>
-                      <input
-                        name="twitter"
-                        value={form.twitter}
-                        onChange={handleChange}
-                        disabled={!isEditing}
-                        type="text"
-                        placeholder="yourhandle"
-                        className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-900 placeholder-slate-500 focus:border-[#22C55E] focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20 disabled:bg-slate-50"
-                      />
-                    </div>
-
-                    <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
-                      <span className="flex w-full shrink-0 items-center whitespace-nowrap rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 sm:w-36 sm:py-0">
-                        <i className="fab fa-instagram mr-2 text-[#22C55E]"></i> instagram.com/
-                      </span>
-                      <input
-                        name="instagram"
-                        value={form.instagram}
-                        onChange={handleChange}
-                        disabled={!isEditing}
-                        type="text"
-                        placeholder="yourprofile"
-                        className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-900 placeholder-slate-500 focus:border-[#22C55E] focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20 disabled:bg-slate-50"
-                      />
-                    </div>
-
-                    <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
-                      <span className="flex w-full shrink-0 items-center whitespace-nowrap rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 sm:w-36 sm:py-0">
-                        <i className="fab fa-linkedin mr-2 text-[#22C55E]"></i> linkedin.com/in/
-                      </span>
-                      <input
-                        name="linkedin"
-                        value={form.linkedin}
-                        onChange={handleChange}
-                        disabled={!isEditing}
-                        type="text"
-                        placeholder="yourprofile"
-                        className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-900 placeholder-slate-500 focus:border-[#22C55E] focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20 disabled:bg-slate-50"
-                      />
-                    </div>
-                  </div>
+                  ) : (
+                    <ul className="mt-5 space-y-3 text-sm text-slate-700">
+                      {[
+                        ['facebook', 'fa-facebook', 'facebook.com/'],
+                        ['twitter', 'fa-twitter', 'twitter.com/'],
+                        ['instagram', 'fa-instagram', 'instagram.com/'],
+                        ['linkedin', 'fa-linkedin', 'linkedin.com/in/']
+                      ].filter(([name]) => form[name]).map(([name, icon, prefix]) => (
+                        <li key={name} className="flex min-w-0 items-center gap-3">
+                          <i className={`fab ${icon} w-4 shrink-0 text-[#22C55E]`} aria-hidden="true" />
+                          <a href={form[name].startsWith('http') ? form[name] : `https://${prefix}${getSocialHandleValue(form[name])}`} target="_blank" rel="noreferrer" className="min-w-0 break-all hover:text-emerald-600">
+                            {prefix}{getSocialHandleValue(form[name])}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
 
                   <div className="mt-6">
                     <label className="block text-sm font-semibold text-slate-900">Bio</label>
                     <div className="mt-4 border-t border-slate-300" />
-                    <textarea
-                      name="bio"
-                      value={form.bio}
-                      onChange={handleChange}
-                      disabled={!isEditing}
-                      rows="4"
-                      placeholder="Tell us about yourself..."
-                      className="mt-6 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder-slate-500 focus:border-[#22C55E] focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20 disabled:bg-slate-50"
-                    />
+                    {isEditing ? (
+                      <textarea
+                        name="bio"
+                        value={form.bio}
+                        onChange={handleChange}
+                        rows="4"
+                        placeholder="Tell us about yourself..."
+                        className="mt-6 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder-slate-500 focus:border-[#22C55E] focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20"
+                      />
+                    ) : (
+                      <p className="mt-5 whitespace-pre-wrap text-sm leading-6 text-slate-600">{form.bio || 'Not provided'}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -707,7 +910,7 @@ const Account = () => {
                 <div className="rounded-2xl border border-slate-200 p-5 text-center text-sm text-slate-600">No posts yet. Create your first blog post.</div>
               ) : (
                 paginatedPosts.map((post) => (
-                  <article key={post.id} className="overflow-hidden rounded-3xl bg-white shadow-lg">
+                  <article key={post.id} className="group relative overflow-hidden rounded-3xl bg-white shadow-lg">
                     {(post.featuredImage || post.image) && (
                       post.status === 'draft' ? (
                         <img src={post.featuredImage || post.image} alt={post.title} className="h-80 w-full object-cover" />
@@ -725,23 +928,125 @@ const Account = () => {
                         {post.status === 'draft' && <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700">Draft</span>}
                       </div>
                       <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-600">
-                        <span><i className="fas fa-user mr-1"></i>{post.status === 'draft' ? (post.author || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || 'Author') : <Link to={getPostAuthorUrl(post)} className="hover:text-emerald-600">{post.author || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || 'Author'}</Link>}</span>
+                        <span><i className="fas fa-user mr-1"></i>{post.status === 'draft' ? (post.author || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || 'Author') : <Link to={getPostAuthorUrl(post, user)} className="hover:text-emerald-600">{post.author || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || 'Author'}</Link>}</span>
                         <span><i className="far fa-calendar mr-1"></i>{post.date}</span>
                         {post.status === 'draft' ? (
-                          <span><i className="far fa-comments mr-1"></i>{getCommentCount(post.id)} Comments</span>
+                          <span><i className="far fa-comments mr-1"></i>{getCommentCount(post.id, commentCounts)} Comments</span>
                         ) : (
-                          <Link to={`${getPostUrl(post)}#comments`} className="hover:text-emerald-600"><i className="far fa-comments mr-1"></i>{getCommentCount(post.id)} Comments</Link>
+                          <Link to={`${getPostUrl(post)}#comments`} className="hover:text-emerald-600"><i className="far fa-comments mr-1"></i>{getCommentCount(post.id, commentCounts)} Comments</Link>
                         )}
                       </div>
                       <p className="mt-4 line-clamp-2 text-slate-600">{getPostExcerpt(post)}</p>
-                      <div className="mt-6 flex items-center justify-end gap-4">
-                      <Link
-                        to={post.status === 'draft' ? getEditPostUrl(post) : getPostUrl(post)}
-                        className={post.status === 'draft' ? 'inline-flex items-center gap-2 rounded-full border border-emerald-600 px-5 py-2 text-sm font-semibold text-emerald-600 hover:bg-emerald-50' : 'rounded-full bg-[#22C55E] px-5 py-2 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#1fae58]'}
-                      >
-                        {post.status === 'draft' ? 'Edit draft' : 'Read More'}
-                      </Link>
+                      <div className="mt-3 flex items-center gap-1 text-xs opacity-0 select-none transition duration-200 group-hover:opacity-100">
+                        <Link to={getEditPostUrl(post)} className="cursor-pointer text-[#22C55E] hover:underline">Edit</Link>
+                        <span className="pointer-events-none text-slate-400">|</span>
+                        <button type="button" onClick={() => beginQuickEdit(post)} className="cursor-pointer text-[#22C55E] hover:underline">Quick Edit</button>
+                        <span className="pointer-events-none text-slate-400">|</span>
+                        <button type="button" onClick={() => setTrashConfirmPostId(post.id)} className="cursor-pointer text-[#22C55E] hover:underline">Trash</button>
+                        <span className="pointer-events-none text-slate-400">|</span>
+                        <Link to={getPostUrl(post)} className="cursor-pointer text-[#22C55E] hover:underline">View</Link>
                       </div>
+
+                      {quickEditPostId === post.id && (
+                        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="grid gap-4 md:grid-cols-3">
+                            <div className="space-y-3">
+                              <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+                                Title
+                                <input
+                                  type="text"
+                                  value={quickEditForm.title || ''}
+                                  onChange={(event) => setQuickEditForm((current) => ({ ...current, title: event.target.value }))}
+                                  className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-[#22C55E]"
+                                />
+                              </label>
+                              <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+                                Slug
+                                <input
+                                  type="text"
+                                  value={quickEditForm.slug || ''}
+                                  onChange={(event) => setQuickEditForm((current) => ({ ...current, slug: event.target.value }))}
+                                  className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-[#22C55E]"
+                                />
+                              </label>
+                              <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+                                Date
+                                <input
+                                  type="datetime-local"
+                                  value={quickEditForm.date || ''}
+                                  onChange={(event) => setQuickEditForm((current) => ({ ...current, date: event.target.value }))}
+                                  className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#22C55E]"
+                                />
+                              </label>
+                            </div>
+
+                            <div className="space-y-3">
+                              <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Categories</span>
+                              <div className="max-h-44 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">
+                                {Object.keys(
+                                  posts.reduce((grouped, entry) => {
+                                    if (entry.category) grouped[entry.category] = true;
+                                    return grouped;
+                                  }, {})
+                                ).map((category) => (
+                                  <label key={category} className="flex items-center gap-2 text-sm text-slate-600">
+                                    <input
+                                      type="radio"
+                                      name={`quick-edit-category-${post.id}`}
+                                      checked={quickEditForm.category === category}
+                                      onChange={() => setQuickEditForm((current) => ({ ...current, category }))}
+                                      className="h-4 w-4 accent-[#22C55E]"
+                                    />
+                                    <span>{category}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+                                Tags
+                                <input
+                                  type="text"
+                                  value={quickEditForm.tags || ''}
+                                  onChange={(event) => setQuickEditForm((current) => ({ ...current, tags: event.target.value }))}
+                                  placeholder="tag1, tag2"
+                                  className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-[#22C55E]"
+                                />
+                              </label>
+                              <label className="flex items-center gap-2 text-sm text-slate-600">
+                                <input
+                                  type="checkbox"
+                                  checked={quickEditForm.allowComments !== false}
+                                  onChange={(event) => setQuickEditForm((current) => ({ ...current, allowComments: event.target.checked }))}
+                                  className="h-4 w-4 accent-[#22C55E]"
+                                />
+                                Allow Comments
+                              </label>
+                              <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+                                Status
+                                <select
+                                  value={quickEditForm.status || 'published'}
+                                  onChange={(event) => setQuickEditForm((current) => ({ ...current, status: event.target.value }))}
+                                  className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#22C55E]"
+                                >
+                                  <option value="published">Published</option>
+                                  <option value="draft">Draft</option>
+                                </select>
+                              </label>
+                            </div>
+                          </div>
+
+                          <div className="mt-5 flex justify-end gap-3">
+                            <button type="button" onClick={() => setQuickEditPostId(null)} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                              Cancel
+                            </button>
+                            <button type="button" onClick={() => saveQuickEdit(post)} className="rounded-xl bg-[#22C55E] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1fae58]">
+                              Update
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </article>
                 ))
@@ -768,6 +1073,23 @@ const Account = () => {
           </div>
         </div>
       </section>
+
+      {trashConfirmPostId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl">
+            <h3 className="text-xl font-semibold text-slate-900">Move post to trash?</h3>
+            <p className="mt-4 text-slate-600">This post will be deleted and removed from your blog.</p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => setTrashConfirmPostId(null)} className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                Cancel
+              </button>
+              <button type="button" onClick={handleConfirmTrashDelete} className="rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white hover:bg-red-700">
+                Move to Trash
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

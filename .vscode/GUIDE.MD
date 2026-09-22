@@ -1,12 +1,12 @@
 #22C55E (RGB: 34, 197, 94).
 #1E1E1E
 
-cd c:\xampp\htdocs\THESIS\OJT-Test\frontend
+cd "C:\xampp\htdocs\THESIS\OJT-Test\frontend"
 npm install
-npm start
+npm startBio
 http://localhost:3000
 
-
+http://localhost:3000/leyharvie?view=profile
 
 
 

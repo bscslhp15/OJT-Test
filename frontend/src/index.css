@@ -18,14 +18,41 @@ body {
   box-sizing: border-box;
 }
 
+.green-checkbox {
+  appearance: none;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  border: 1px solid #94a3b8;
+  border-radius: 0.25rem;
+  background-color: #fff;
+  cursor: pointer;
+}
+
+.green-checkbox:checked {
+  border-color: #22c55e;
+  background-color: #22c55e;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2.5' d='m3 8 3 3 7-7'/%3E%3C/svg%3E");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 0.75rem;
+}
+
 .post-editor-content ul {
   list-style-type: disc;
   padding-left: 2rem;
+  white-space: normal;
+}
+
+.post-editor-content {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .post-editor-content ol {
   list-style-type: decimal;
   padding-left: 2rem;
+  white-space: normal;
 }
 
 .post-editor-content ul,
@@ -33,6 +60,7 @@ body {
 .post-editor-content li {
   font-size: 1rem !important;
   line-height: 1.75 !important;
+  white-space: normal;
 }
 
 .post-editor-content p {

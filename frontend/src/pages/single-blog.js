@@ -4,6 +4,8 @@ import PageHeader from '../components/page-header';
 import AuthContext from '../context/auth-context';
 import { createPostSlug, getEditPostUrl, getPostUrl } from '../services/post-url';
 import { getPostAuthorUrl } from '../services/account-url';
+import { loadPublicPosts } from '../services/public-data';
+import { createComment as createCommentRequest, fetchComments } from '../services/api';
 
 const defaultProfile = '/images/default-profile.jpg';
 const legacyCategories = new Set(['General', 'Design', 'Development', 'Branding', 'Marketing']);
@@ -11,6 +13,11 @@ const normalizeCategory = (category) => {
   const value = String(category || '').trim();
   return legacyCategories.has(value) ? 'Uncategorized' : value;
 };
+const getPostCategories = (category) => String(category || 'Uncategorized')
+  .split(',')
+  .map((value) => normalizeCategory(value))
+  .map((value) => value.trim())
+  .filter(Boolean);
 
 const normalizeImageCaptionLinks = (html) => {
   if (!html || typeof document === 'undefined') return html || '';
@@ -46,6 +53,17 @@ const removePageBreakMarkup = (html) => html
   .replace(/^\s*<\/div>/i, '')
   .trim();
 
+const flattenContentBlocks = (blocks) => blocks.flatMap((block) => {
+  const text = block?.data?.text || '';
+  try {
+    const nested = JSON.parse(text);
+    if (nested && Array.isArray(nested.blocks)) return flattenContentBlocks(nested.blocks);
+  } catch (error) {
+    // The block contains regular HTML.
+  }
+  return [block];
+});
+
 const splitHtmlAtPageBreaks = (html) => html.includes('<!--nextpage-->')
   ? html.split('<!--nextpage-->').map(removePageBreakMarkup)
   : null;
@@ -62,10 +80,19 @@ const renderBlock = (block, index, textOverride) => {
 const ReadMoreContent = ({ content }) => {
   const [currentPage, setCurrentPage] = useState(1);
   let blocks = null;
+  let embeddedHtml = '';
 
   try {
     const parsed = JSON.parse(content || '');
-    if (parsed && Array.isArray(parsed.blocks)) blocks = parsed.blocks;
+    if (parsed && Array.isArray(parsed.blocks)) {
+      const flattenedBlocks = flattenContentBlocks(parsed.blocks);
+      embeddedHtml = flattenedBlocks
+        .map((block) => block.data?.text || (block.type === 'image' && block.data?.url ? `<img src="${block.data.url}" alt="${block.data.caption || 'Post image'}" />` : ''))
+        .filter(Boolean)
+        .join('\n');
+      const containsFullHtml = flattenedBlocks.some((block) => /<(?:p|div|h[1-6]|ul|ol|figure|blockquote|table)\b/i.test(block.data?.text || ''));
+      blocks = containsFullHtml ? null : flattenedBlocks;
+    }
   } catch (error) {
     // Render legacy HTML posts below.
   }
@@ -124,7 +151,7 @@ const ReadMoreContent = ({ content }) => {
     return blocks.map((block, index) => renderBlock(block, index));
   }
 
-  const html = normalizeImageCaptionLinks(content || '');
+  const html = normalizeImageCaptionLinks(embeddedHtml || content || '');
   const pages = splitHtmlAtPageBreaks(html);
   if (pages && pages.length > 1) {
     const pageIndex = Math.min(currentPage - 1, pages.length - 1);
@@ -156,12 +183,12 @@ const ReadMoreContent = ({ content }) => {
 };
 
 const SingleBlog = () => {
-  const { id } = useParams();
+  const { id, slug, year, month, day } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const { user, deletePost } = useContext(AuthContext);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [comments, setComments] = useState(() => JSON.parse(localStorage.getItem(`testsite-comments-${id}`) || '[]'));
+  const [comments, setComments] = useState([]);
   const [commentName, setCommentName] = useState('');
   const [commentEmail, setCommentEmail] = useState('');
   const [commentWebsite, setCommentWebsite] = useState('');
@@ -169,22 +196,37 @@ const SingleBlog = () => {
   const [replyTo, setReplyTo] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [selectedCategories, setSelectedCategories] = useState([]);
+  const [publicPosts, setPublicPosts] = useState([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    loadPublicPosts().then((posts) => {
+      if (!isMounted) return;
+      setPublicPosts(posts);
+      setIsLoadingPosts(false);
+    }).catch(() => {
+      if (isMounted) setIsLoadingPosts(false);
+    });
+    return () => { isMounted = false; };
+  }, [user?.email]);
 
   useEffect(() => {
     setCommentName(user?.confirmed ? (user.username || '') : '');
   }, [user]);
 
-  const globalPosts = JSON.parse(localStorage.getItem('testsite-posts') || '[]');
+  const fallbackGlobalPosts = JSON.parse(localStorage.getItem('testsite-posts') || '[]');
+  const globalPosts = publicPosts.length > 0 ? publicPosts : fallbackGlobalPosts;
   const userPosts = Array.isArray(user?.posts) ? user.posts : [];
   
   const enrichPost = (post) => {
+    const normalizedAuthorId = String(post.authorId ?? post.author_id ?? '').trim();
     if (post.author && post.author.trim()) return post;
-    if (post.authorId && post.authorId.trim()) {
-      const authorId = post.authorId;
-      if (authorId.includes('@')) {
-        return { ...post, author: authorId.split('@')[0] };
+    if (normalizedAuthorId) {
+      if (normalizedAuthorId.includes('@')) {
+        return { ...post, author: normalizedAuthorId.split('@')[0] };
       }
-      return { ...post, author: authorId };
+      return { ...post, author: normalizedAuthorId };
     }
     return { ...post, author: 'Author' };
   };
@@ -192,12 +234,71 @@ const SingleBlog = () => {
   const globalPostsEnriched = globalPosts.map((post) => ({ ...enrichPost(post), category: normalizeCategory(post.category) }));
   const userPostsEnriched = userPosts.map((post) => ({ ...enrichPost(post), category: normalizeCategory(post.category) }));
   const allPosts = [...globalPostsEnriched, ...userPostsEnriched.filter((post) => !globalPostsEnriched.some((item) => String(item.id) === String(post.id)))];
-  const post = allPosts.find((item) => String(item.id) === String(id) || createPostSlug(item.title) === id);
+  const targetSlug = String(slug || id || '').trim();
+  const post = allPosts.find((item) => {
+    const itemSlug = String(item.slug || createPostSlug(item.title) || item.id || '').trim();
+    const itemDate = item?.publishedAt || item?.createdAt || item?.date;
+    const parsedDate = itemDate ? new Date(itemDate) : null;
+    const matchesId = id ? String(item.id) === String(id) : false;
+    const matchesSlug = targetSlug ? (itemSlug === targetSlug || createPostSlug(item.title || '') === targetSlug) : false;
+
+    if (matchesId || matchesSlug) return true;
+
+    if (!slug && year && month && day && parsedDate && !Number.isNaN(parsedDate.getTime())) {
+      return (
+        Number(parsedDate.getFullYear()) === Number(year)
+        && String(parsedDate.getMonth() + 1).padStart(2, '0') === String(month)
+        && String(parsedDate.getDate()).padStart(2, '0') === String(day)
+      );
+    }
+
+    return false;
+  });
+
+  useEffect(() => {
+    if (post?.title) {
+      document.title = `${post.title} - TestSite`;
+    }
+  }, [post?.title]);
 
   useEffect(() => {
     if (!post?.id) return;
-    setComments(JSON.parse(localStorage.getItem(`testsite-comments-${post.id}`) || '[]'));
-  }, [post?.id]);
+    const localComments = JSON.parse(localStorage.getItem(`testsite-comments-${post.id}`) || '[]');
+    fetchComments(post.id).then(({ data }) => {
+      const remoteComments = Array.isArray(data) ? data : [];
+      if (remoteComments.length > 0 || localComments.length === 0) {
+        setComments(remoteComments.length > 0 ? remoteComments : localComments);
+        return;
+      }
+
+      const syncComments = async () => {
+        const idMap = new Map();
+        const syncedComments = [];
+        for (const comment of localComments) {
+          const parentId = comment.parentId ? idMap.get(String(comment.parentId)) || null : null;
+          try {
+            const { data: syncedComment } = await createCommentRequest({
+              post_id: post.id,
+              content: comment.text,
+              author_name: comment.name,
+              author_email: comment.email,
+              website: comment.website,
+              avatar: comment.avatar,
+              parent_id: parentId,
+              authKey: user?.authKey || user?.auth_key
+            });
+            idMap.set(String(comment.id), syncedComment.id);
+            syncedComments.push(syncedComment);
+          } catch (error) {
+            syncedComments.push(comment);
+          }
+        }
+        setComments(syncedComments);
+      };
+
+      syncComments();
+    }).catch(() => setComments(localComments));
+  }, [post?.id, user?.authKey, user?.auth_key]);
 
   useEffect(() => {
     if (location.hash !== '#comments' || !post) return;
@@ -208,11 +309,24 @@ const SingleBlog = () => {
     setIsDeleteModalOpen(true);
   };
 
-  const confirmDeletePost = () => {
-    deletePost(post.id);
+  const confirmDeletePost = async () => {
+    await deletePost(post.id);
     setIsDeleteModalOpen(false);
     navigate('/blog');
   };
+
+  if (isLoadingPosts) {
+    return (
+      <>
+        <PageHeader title="Blog Post" subtitle="Loading post..." />
+        <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="rounded-3xl bg-white p-10 text-center shadow-xl">
+            <p className="text-sm text-slate-500">Loading post...</p>
+          </div>
+        </section>
+      </>
+    );
+  }
 
   if (!post) {
     return (
@@ -232,9 +346,9 @@ const SingleBlog = () => {
   }
 
   const categoryData = allPosts.reduce((categoriesByName, item) => {
-    const category = item.category;
-    if (!category) return categoriesByName;
-    categoriesByName[category] = (categoriesByName[category] || 0) + 1;
+    getPostCategories(item.category).forEach((category) => {
+      categoriesByName[category] = (categoriesByName[category] || 0) + 1;
+    });
     return categoriesByName;
   }, {});
   const categories = Object.entries(categoryData);
@@ -274,16 +388,21 @@ const SingleBlog = () => {
     .map(normalizeText)
     .filter(Boolean);
 
+  const authorIdValue = String(post.authorId ?? post.author_id ?? '');
   const isAuthor = !!user && (
     (post.authorUserId && String(post.authorUserId) === String(user.id)) ||
-    (post.authorId && normalizeText(post.authorId) === normalizeText(user.email))
+    (post.author_id && String(post.author_id) === String(user.id)) ||
+    (authorIdValue && (
+      normalizeText(authorIdValue) === normalizeText(user.email) ||
+      normalizeText(authorIdValue) === normalizeText(user.username)
+    ))
   );
   const isCurrentUserPost = isAuthor || (!!user && normalizeText(post.author) === normalizeText(user.username));
-  const storedAuthorPhoto = post.authorId && post.authorId.includes('@')
-    ? localStorage.getItem(`testsite-profile-${post.authorId.toLowerCase()}`)
+  const storedAuthorPhoto = authorIdValue.includes('@')
+    ? localStorage.getItem(`testsite-profile-${authorIdValue.toLowerCase()}`)
     : null;
-  const storedAuthorUser = post.authorId && post.authorId.includes('@')
-    ? JSON.parse(localStorage.getItem(`testsite-user-persist-${post.authorId.toLowerCase()}`) || 'null')
+  const storedAuthorUser = authorIdValue.includes('@')
+    ? JSON.parse(localStorage.getItem(`testsite-user-persist-${authorIdValue.toLowerCase()}`) || 'null')
     : null;
   const authorProfilePhoto = isCurrentUserPost
     ? (user?.profile_photo || (user?.email ? localStorage.getItem(`testsite-profile-${user.email.toLowerCase()}`) : null))
@@ -319,25 +438,51 @@ const SingleBlog = () => {
     };
   };
 
-  const handleCommentSubmit = (event) => {
+  const handleCommentSubmit = async (event) => {
     event.preventDefault();
+    if (post.allowComments === false) return;
     const newComment = createComment(commentText, commentEmail, commentWebsite);
     if (!newComment) return;
-    const nextComments = [...comments, newComment];
-    setComments(nextComments);
-    localStorage.setItem(`testsite-comments-${post.id}`, JSON.stringify(nextComments));
+    try {
+      const { data } = await createCommentRequest({
+        post_id: post.id,
+        content: newComment.text,
+        author_name: newComment.name,
+        author_email: newComment.email,
+        website: newComment.website,
+        avatar: newComment.avatar,
+        authKey: user?.authKey || user?.auth_key
+      });
+      setComments((current) => [...current, data]);
+    } catch (error) {
+      const nextComments = [...comments, newComment];
+      setComments(nextComments);
+      localStorage.setItem(`testsite-comments-${post.id}`, JSON.stringify(nextComments));
+    }
     setCommentEmail('');
     setCommentWebsite('');
     setCommentText('');
   };
 
-  const handleReplySubmit = (event, parentId) => {
+  const handleReplySubmit = async (event, parentId) => {
     event.preventDefault();
+    if (post.allowComments === false) return;
     const newReply = createComment(replyText, '', '', parentId);
     if (!newReply) return;
-    const nextComments = [...comments, newReply];
-    setComments(nextComments);
-    localStorage.setItem(`testsite-comments-${post.id}`, JSON.stringify(nextComments));
+    try {
+      const { data } = await createCommentRequest({
+        post_id: post.id,
+        content: newReply.text,
+        parent_id: parentId,
+        authKey: user?.authKey || user?.auth_key,
+        avatar: newReply.avatar
+      });
+      setComments((current) => [...current, data]);
+    } catch (error) {
+      const nextComments = [...comments, newReply];
+      setComments(nextComments);
+      localStorage.setItem(`testsite-comments-${post.id}`, JSON.stringify(nextComments));
+    }
     setReplyText('');
     setReplyTo(null);
   };
@@ -434,7 +579,7 @@ const SingleBlog = () => {
               <div className="p-8">
                 {post.category && <div className="text-sm uppercase tracking-[0.3em] text-emerald-600">{post.category}</div>}
                 <h1 className="mt-3 text-3xl font-semibold text-slate-900">{post.title}</h1>
-                <div className="mt-3 text-sm text-slate-600">By <Link to={getPostAuthorUrl(post)} className="hover:text-emerald-600">{post.author || 'Author'}</Link></div>
+                <div className="mt-3 text-sm text-slate-600">By <Link to={getPostAuthorUrl(post, user)} className="hover:text-emerald-600">{post.author || 'Author'}</Link></div>
                 <div className="mt-6 max-w-none text-slate-700 leading-7"><ReadMoreContent content={post.content} /></div>
               </div>
             </div>
@@ -442,7 +587,7 @@ const SingleBlog = () => {
             {/* Author box */}
             <div id="comments" className="mb-8 scroll-mt-28 rounded-2xl bg-white p-6 shadow">
               <div className="flex items-center gap-5">
-                <Link to={getPostAuthorUrl(post)} aria-label={`View ${post.author || 'author'} profile`} className="flex-shrink-0 rounded-full transition hover:opacity-80">
+                <Link to={getPostAuthorUrl(post, user)} aria-label={`View ${post.author || 'author'} profile`} className="flex-shrink-0 rounded-full transition hover:opacity-80">
                   {authorProfilePhoto ? (
                     <img src={authorProfilePhoto} alt="Author profile" className="h-24 w-24 rounded-full object-cover" />
                   ) : (
@@ -452,7 +597,7 @@ const SingleBlog = () => {
                   )}
                 </Link>
                 <div className="min-w-0 flex-1">
-                  <Link to={getPostAuthorUrl(post)} className="text-lg font-semibold text-slate-900 transition hover:text-emerald-600">{post.author || 'Author'}</Link>
+                  <Link to={getPostAuthorUrl(post, user)} className="text-lg font-semibold text-slate-900 transition hover:text-emerald-600">{post.author || 'Author'}</Link>
                   {socialLinks.length > 0 && (
                     <div className="mt-1 flex items-center gap-3 text-slate-500">
                       {socialLinks.map((link) => (
@@ -477,19 +622,23 @@ const SingleBlog = () => {
 
             <div className="rounded-2xl bg-white p-6 shadow">
               <h2 className="text-xl font-semibold text-slate-900">Leave a Reply</h2>
-              <p className="mt-2 text-sm text-slate-500">Your email address will not be published. Required fields are marked *</p>
-              {user && !user.confirmed ? (
+              {post.allowComments === false ? (
+                <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-600">Comments are disabled for this post.</p>
+              ) : user && !user.confirmed ? (
                 <p className="mt-6 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">Please confirm your account before commenting. Commenting is disabled until confirmation.</p>
               ) : (
-                <form onSubmit={handleCommentSubmit} className="mt-6 space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {!user && <input value={commentName} onChange={(event) => setCommentName(event.target.value)} placeholder="Your Name *" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm" required />}
-                    {!user && <input type="email" value={commentEmail} onChange={(event) => setCommentEmail(event.target.value)} placeholder="Your Email *" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm" required />}
-                  </div>
-                  {!user && <input value={commentWebsite} onChange={(event) => setCommentWebsite(event.target.value)} placeholder="Your Website" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm" />}
-                  <textarea value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder="Your Comment *" className="min-h-32 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm" required />
-                  <button type="submit" className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700">Post Comment</button>
-                </form>
+                <>
+                  <p className="mt-2 text-sm text-slate-500">Your email address will not be published. Required fields are marked *</p>
+                  <form onSubmit={handleCommentSubmit} className="mt-6 space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {!user && <input value={commentName} onChange={(event) => setCommentName(event.target.value)} placeholder="Your Name *" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm" required />}
+                      {!user && <input type="email" value={commentEmail} onChange={(event) => setCommentEmail(event.target.value)} placeholder="Your Email *" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm" required />}
+                    </div>
+                    {!user && <input value={commentWebsite} onChange={(event) => setCommentWebsite(event.target.value)} placeholder="Your Website" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm" />}
+                    <textarea value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder="Your Comment *" className="min-h-32 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm" required />
+                    <button type="submit" className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700">Post Comment</button>
+                  </form>
+                </>
               )}
             </div>
           </main>
@@ -514,15 +663,13 @@ const SingleBlog = () => {
               <ul className="mt-5 space-y-3 text-slate-600">
                 {categories.map(([category, count]) => (
                   <li key={category}>
-                    <button
-                      type="button"
-                      onClick={() => toggleCategory(category)}
-                      aria-pressed={selectedCategories.includes(category)}
+                    <Link
+                      to={`/blog/category/${createPostSlug(category)}`}
                       className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${selectedCategories.includes(category) ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600 hover:border-emerald-300 hover:text-emerald-700'}`}
                     >
                       <span>{category}</span>
                       <span className={`text-xs font-semibold ${selectedCategories.includes(category) ? 'text-emerald-600' : 'text-slate-400'}`}>{count}</span>
-                    </button>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -560,14 +707,13 @@ const SingleBlog = () => {
                 <h3 className="text-sm font-semibold text-slate-900">Tags</h3>
                 <div className="mt-5 flex flex-wrap gap-3">
                   {allTags.map((tag) => (
-                    <button
+                    <Link
                       key={tag}
-                      type="button"
-                      onClick={() => navigate(`/blog?tag=${encodeURIComponent(tag)}`)}
+                      to={`/blog/tag/${createPostSlug(tag)}`}
                       className="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:border-emerald-600 hover:text-emerald-600"
                     >
                       {tag}
-                    </button>
+                    </Link>
                   ))}
                 </div>
               </div>

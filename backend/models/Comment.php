@@ -17,6 +17,10 @@ class Comment extends ActiveRecord
             ['post_id', 'integer'],
             ['content', 'string'],
             ['author_name', 'string', 'max' => 255],
+            ['author_email', 'string', 'max' => 255],
+            ['website', 'string', 'max' => 255],
+            ['author_avatar', 'string'],
+            ['parent_id', 'integer'],
             ['created_at', 'safe'],
         ];
     }

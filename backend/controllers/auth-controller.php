@@ -1,6 +1,7 @@
 <?php
 namespace app\controllers;
 
+use app\models\Post;
 use app\models\User;
 use PHPMailer\PHPMailer\Exception;
 use PHPMailer\PHPMailer\PHPMailer;
@@ -225,6 +226,7 @@ class AuthController extends Controller
         $user->phone = $body['phone'] ?? $user->phone;
         $user->address = $body['address'] ?? $user->address;
         $user->bio = $body['bio'] ?? $user->bio;
+        $user->profile_photo = $body['profile_photo'] ?? $body['profilePhoto'] ?? $user->profile_photo;
         $social = $body['social'] ?? [];
         $user->facebook = $social['facebook'] ?? $user->facebook;
         $user->twitter = $social['twitter'] ?? $user->twitter;
@@ -236,6 +238,83 @@ class AuthController extends Controller
         }
 
         return ['success' => true];
+    }
+
+    public function actionProfile($identifier = null)
+    {
+        $rawIdentifier = trim((string)($identifier ?? Yii::$app->request->get('identifier') ?? Yii::$app->request->get('username') ?? Yii::$app->request->get('email') ?? ''));
+        if ($rawIdentifier === '') {
+            throw new BadRequestHttpException('A username or email is required.');
+        }
+
+        $user = User::find()->where(['username' => $rawIdentifier])->orWhere(['email' => $rawIdentifier])->one();
+        if (!$user) {
+            $normalizedIdentifier = strtolower(preg_replace('/\s+/', '', $rawIdentifier));
+            foreach (User::find()->all() as $candidate) {
+                $candidateSlug = strtolower(preg_replace('/\s+/', '', (string)$candidate->username));
+                $candidateEmailSlug = strtolower((string)strtok((string)$candidate->email, '@'));
+                $candidateNameSlug = strtolower(trim(preg_replace('/[^a-z0-9]+/i', '-', $candidate->first_name . ' ' . $candidate->last_name), '-'));
+                if ($candidateSlug === $normalizedIdentifier || $candidateEmailSlug === $normalizedIdentifier || $candidateNameSlug === $normalizedIdentifier) {
+                    $user = $candidate;
+                    break;
+                }
+            }
+        }
+        if (!$user) {
+            throw new BadRequestHttpException('User not found.');
+        }
+
+        $posts = Post::find()->where(['author_id' => $user->id])->orderBy(['created_at' => SORT_DESC])->all();
+
+        return [
+            'success' => true,
+            'user' => [
+                'id' => $user->id,
+                'firstName' => $user->first_name,
+                'lastName' => $user->last_name,
+                'username' => $user->username,
+                'email' => $user->email,
+                'profile_photo' => $user->profile_photo,
+                'bio' => $user->bio,
+                'phone' => $user->phone,
+                'address' => $user->address,
+                'social' => [
+                    'linkedin' => $user->linkedin,
+                    'twitter' => $user->twitter,
+                    'facebook' => $user->facebook,
+                    'instagram' => $user->instagram,
+                ],
+            ],
+            'posts' => array_map(function ($post) {
+                return [
+                    'id' => $post->id,
+                    'title' => $post->title,
+                    'content' => $post->content,
+                    'image' => $post->image,
+                    'featuredImage' => $post->image,
+                    'slug' => $post->slug ?: strtolower(str_replace(' ', '-', $post->title)),
+                    'category' => $post->category ?: 'Uncategorized',
+                    'tags' => json_decode($post->tags ?: '[]', true) ?: [],
+                    'status' => $post->status ?: 'published',
+                    'author_id' => $post->author_id,
+                    'date' => date('m/d/Y', strtotime($post->created_at)),
+                    'created_at' => $post->created_at,
+                    'publishedAt' => $post->created_at,
+                    'category' => 'Uncategorized',
+                    'slug' => strtolower(str_replace(' ', '-', preg_replace('/[^A-Za-z0-9 ]+/', '', $post->title))),
+                    'author' => $post->author ? ($post->author->first_name . ' ' . $post->author->last_name) : $post->author_id,
+                    'authorId' => $post->author ? $post->author->email : '',
+                    'authorAvatar' => $post->author ? $post->author->profile_photo : '',
+                    'authorBio' => $post->author ? $post->author->bio : '',
+                    'authorSocial' => $post->author ? [
+                        'facebook' => $post->author->facebook,
+                        'twitter' => $post->author->twitter,
+                        'instagram' => $post->author->instagram,
+                        'linkedin' => $post->author->linkedin,
+                    ] : [],
+                ];
+            }, $posts),
+        ];
     }
 
     public function actionConfirm($token)

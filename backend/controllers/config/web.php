@@ -46,9 +46,11 @@ $config = [
             'enableStrictParsing' => false,
             'rules' => [
                 'confirm/<token>' => 'auth/confirm',
+                'GET auth/profile/<identifier:[A-Za-z0-9_.-]+>' => 'auth/profile',
                 [
                     'class' => 'yii\rest\UrlRule',
                     'controller' => ['auth', 'post', 'comment', 'contact'],
+                    'pluralize' => false,
                     'extraPatterns' => [
                         'POST register' => 'register',
                         'POST login' => 'login',
