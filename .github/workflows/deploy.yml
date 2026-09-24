@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Get source code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -26,7 +26,7 @@ jobs:
         env:
           REACT_APP_API_BASE_URL: /web
 
-      - name: Upload frontend
+      - name: Upload frontend build
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -34,8 +34,9 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./frontend/build/
           server-dir: /htdocs/
+          log-level: minimal
 
-      - name: Upload backend
+      - name: Upload Yii backend
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -43,8 +44,9 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./backend/
           server-dir: /htdocs/
+          log-level: minimal
           exclude: |
             **/.git*
-            **/runtime/logs/*
-            **/runtime/cache/*
-            **/vendor/*
+            **/.git*/**
+            runtime/logs/**
+            runtime/cache/**
