@@ -1,9 +1,9 @@
 <?php
 
-$databaseHost = getenv('TESTSITE_DB_HOST') ?: '127.0.0.1';
-$databaseName = getenv('TESTSITE_DB_NAME') ?: 'testsite';
-$databaseUser = getenv('TESTSITE_DB_USERNAME') ?: 'root';
-$databasePassword = getenv('TESTSITE_DB_PASSWORD') ?: '';
+$databaseHost = getenv('TESTSITE_DB_HOST') ?: 'sql302.infinityfree.com';
+$databaseName = getenv('TESTSITE_DB_NAME') ?: 'if0_42977499_TestSite';
+$databaseUser = getenv('TESTSITE_DB_USERNAME') ?: 'if0_42977499';
+$databasePassword = getenv('TESTSITE_DB_PASSWORD') ?: 'KR4xF760xSCBy';
 
 return [
     'class' => 'yii\db\Connection',
