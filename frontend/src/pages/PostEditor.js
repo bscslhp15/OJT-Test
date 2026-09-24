@@ -645,12 +645,6 @@ const PostEditor = () => {
       if (editor && editorViewMode === 'visual' && editor.innerHTML !== content) {
         editor.innerHTML = content;
       }
-      if (editorViewMode === 'code') {
-        setCodeViewValues((current) => {
-          if (current[block.id] === content) return current;
-          return { ...current, [block.id]: content };
-        });
-      }
     });
   }, [blocks, editorViewMode]);
 
