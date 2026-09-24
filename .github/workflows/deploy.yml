@@ -26,23 +26,21 @@ jobs:
         env:
           REACT_APP_API_BASE_URL: /web
 
-      - name: Upload frontend build
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./frontend/build/
-          server-dir: /htdocs/
-          log-level: minimal
+      - name: Prepare deployment files
+        shell: bash
+        run: |
+          rm -rf deploy
+          mkdir -p deploy
+          cp -R frontend/build/. deploy/
+          cp -R backend/. deploy/
 
-      - name: Upload Yii backend
+      - name: Upload complete site
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./backend/
+          local-dir: ./deploy/
           server-dir: /htdocs/
           log-level: minimal
           exclude: |
