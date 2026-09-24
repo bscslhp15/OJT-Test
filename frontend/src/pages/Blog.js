@@ -317,7 +317,7 @@ const Blog = () => {
         <div className="grid gap-10 lg:grid-cols-[2fr_1fr]">
           <div className="space-y-8">
             {(categorySlug || tagSlug) && (
-              <header className="bg-white px-8 py-7 shadow-sm">
+              <header className="rounded-3xl bg-white px-8 py-7 shadow-sm" style={{ borderRadius: '1.5rem' }}>
                 <div className="text-sm uppercase tracking-[0.3em] text-slate-500">{categorySlug ? 'Category' : 'Tag'}</div>
                 <h1 className="mt-2 text-4xl font-semibold text-slate-900">
                   {categorySlug
