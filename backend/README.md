@@ -25,3 +25,9 @@ For Gmail, use a Google App Password, not the normal account password. The same 
 - `config/` - application configuration
 - `web/` - web entry point
 - `migrations/` - database migrations
+
+## Database configuration
+
+The active Yii database file is `controllers/config/db.php`. Before running the project locally, rename `db.php` to `db(infinity).php` and rename `db(lokal).php` to `db.php`. Before pushing or deploying to InfinityFree, restore `db(infinity).php` as `db.php`.
+
+The local configuration assumes XAMPP MySQL defaults: host `127.0.0.1`, database `testsite`, username `root`, and an empty password. Set `TESTSITE_DB_HOST`, `TESTSITE_DB_NAME`, `TESTSITE_DB_USERNAME`, and `TESTSITE_DB_PASSWORD` when your local database uses different values.

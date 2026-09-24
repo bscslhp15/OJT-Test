@@ -17,6 +17,11 @@ export const getAuthorUrl = (user) => `/author/${createAuthorSlug([user?.firstNa
 
 export const getPostAuthorUrl = (post) => {
   const normalize = (value) => String(value || '').trim().toLowerCase();
+  const creatorNames = new Set(['leyharvie', 'leyharvieperalta']);
+  const isCreator = (user) => {
+    const candidates = [user?.username, user?.name, user?.email?.split('@')[0], [user?.firstName, user?.lastName].filter(Boolean).join(' ')];
+    return candidates.some((candidate) => creatorNames.has(normalize(candidate).replace(/[^a-z0-9]/g, '')));
+  };
   const postAuthorId = normalize(post?.authorId);
 
   if (postAuthorId.includes('@')) {
@@ -26,8 +31,10 @@ export const getPostAuthorUrl = (post) => {
     } catch (error) {
       persistedUser = null;
     }
-    if (persistedUser) return getAuthorUrl(persistedUser);
-    return getAuthorUrl({ name: post?.author || postAuthorId.split('@')[0] });
+    if (persistedUser) return isCreator(persistedUser) ? getAccountUrl(persistedUser) : getAuthorUrl(persistedUser);
+    const author = { name: post?.author || postAuthorId.split('@')[0], email: postAuthorId };
+    return isCreator(author) ? '/leyharvie' : getAuthorUrl(author);
   }
-  return getAuthorUrl({ name: post?.author || 'author' });
+  const author = { name: post?.author || 'author', username: postAuthorId };
+  return isCreator(author) ? '/leyharvie' : getAuthorUrl(author);
 };
