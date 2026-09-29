@@ -1,9 +1,9 @@
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useContext, useEffect, useState } from 'react';
 import PageHeader from '../components/page-header';
 import AuthContext, { getDeletedPostIds } from '../context/auth-context';
 import { createPostSlug, getEditPostUrl, getPostUrl } from '../services/post-url';
-import { getPostAuthorUrl } from '../services/account-url';
+import { getPostAuthorClickHandler, getPostAuthorUrl } from '../services/account-url';
 import { isPostVisible } from '../services/post-status';
 import { loadPublicPosts } from '../services/public-data';
 import { fetchComments, updatePost as updatePostRequest } from '../services/api';
@@ -99,6 +99,7 @@ const getPostSortTimestamp = (post) => {
 
 const Blog = () => {
   const { user, updateProfile, deletePost } = useContext(AuthContext);
+  const navigate = useNavigate();
   const { categorySlug, tagSlug } = useParams();
   const [searchParams] = useSearchParams();
   const [trashConfirmPostId, setTrashConfirmPostId] = useState(null);
@@ -339,7 +340,7 @@ const Blog = () => {
                 <div className="p-8">
                   <h2 className="text-2xl font-semibold text-slate-900"><Link to={getPostUrl(post)} className="transition hover:text-emerald-600">{post.title}</Link></h2>
                   <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-600">
-                    <span><i className="fas fa-user mr-1"></i><Link to={getPostAuthorUrl(post, user)} className="hover:text-emerald-600">{post.author || 'Author'}</Link></span>
+                    <span><i className="fas fa-user mr-1"></i><Link to={getPostAuthorUrl(post)} onClick={getPostAuthorClickHandler(post, user, navigate)} className="hover:text-emerald-600">{post.author || 'Author'}</Link></span>
                     <span><i className="far fa-calendar mr-1"></i>{post.date}</span>
                     <Link to={`${getPostUrl(post)}#comments`} className="hover:text-emerald-600"><i className="far fa-comments mr-1"></i>{getCommentCount(post.id)} Comments</Link>
                   </div>
@@ -493,6 +494,12 @@ const Blog = () => {
                   <li key={category}>
                     <Link
                       to={`/blog/category/${createPostSlug(category)}`}
+                      onClick={(event) => {
+                        if (selectedCategories.includes(createPostSlug(category))) {
+                          event.preventDefault();
+                          navigate('/blog');
+                        }
+                      }}
                       className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${selectedCategories.includes(createPostSlug(category)) ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600 hover:border-emerald-300 hover:text-emerald-700'}`}
                     >
                       <span>{category}</span>
@@ -536,6 +543,12 @@ const Blog = () => {
                   <Link
                     key={tag}
                     to={`/blog/tag/${createPostSlug(tag)}`}
+                    onClick={(event) => {
+                      if (selectedTags.includes(createPostSlug(tag)) || selectedTags.includes(tag)) {
+                        event.preventDefault();
+                        navigate('/blog');
+                      }
+                    }}
                     className={`rounded-full border px-4 py-2 text-sm transition ${selectedTags.includes(createPostSlug(tag)) || selectedTags.includes(tag) ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600 hover:border-[#22C55E] hover:text-[#22C55E]'}`}
                   >
                     {tag} <span className="ml-1 text-xs">{count}</span>

@@ -3,7 +3,7 @@ import { useContext, useEffect, useState } from 'react';
 import PageHeader from '../components/page-header';
 import AuthContext from '../context/auth-context';
 import { createPostSlug, getEditPostUrl, getPostUrl } from '../services/post-url';
-import { getPostAuthorUrl } from '../services/account-url';
+import { getPostAuthorClickHandler, getPostAuthorUrl } from '../services/account-url';
 import { loadPublicPosts } from '../services/public-data';
 import { createComment as createCommentRequest, fetchComments } from '../services/api';
 
@@ -497,14 +497,15 @@ const SingleBlog = () => {
     return belongsToCurrentUser ? (currentProfilePhoto || defaultProfile) : (comment.avatar || defaultProfile);
   };
 
-  const getCommentProfileUrl = (comment) => getPostAuthorUrl({
+  const getCommentProfilePost = (comment) => ({
     authorId: comment.email,
     author: comment.name
   });
+  const getCommentProfileUrl = (comment) => getPostAuthorUrl(getCommentProfilePost(comment));
 
   const renderComment = (comment, isReply = false) => (
     <div key={comment.id} className={`flex gap-4 border-b border-slate-100 pb-5 last:border-0 ${isReply ? 'ml-10 pt-4' : ''}`}>
-      <Link to={getCommentProfileUrl(comment)} aria-label={`View ${comment.name || 'comment author'} profile`} className="flex-shrink-0 rounded-full transition hover:opacity-80">
+      <Link to={getCommentProfileUrl(comment)} onClick={getPostAuthorClickHandler(getCommentProfilePost(comment), user, navigate)} aria-label={`View ${comment.name || 'comment author'} profile`} className="flex-shrink-0 rounded-full transition hover:opacity-80">
         <img src={getCommentAvatar(comment)} alt="Comment author" className="h-12 w-12 rounded-full object-cover" />
       </Link>
       <div className="min-w-0 flex-1">
@@ -579,7 +580,7 @@ const SingleBlog = () => {
               <div className="p-8">
                 {post.category && <div className="text-sm uppercase tracking-[0.3em] text-emerald-600">{post.category}</div>}
                 <h1 className="mt-3 text-3xl font-semibold text-slate-900">{post.title}</h1>
-                <div className="mt-3 text-sm text-slate-600">By <Link to={getPostAuthorUrl(post, user)} className="hover:text-emerald-600">{post.author || 'Author'}</Link></div>
+                <div className="mt-3 text-sm text-slate-600">By <Link to={getPostAuthorUrl(post)} onClick={getPostAuthorClickHandler(post, user, navigate)} className="hover:text-emerald-600">{post.author || 'Author'}</Link></div>
                 <div className="mt-6 max-w-none text-slate-700 leading-7"><ReadMoreContent content={post.content} /></div>
               </div>
             </div>
@@ -587,7 +588,7 @@ const SingleBlog = () => {
             {/* Author box */}
             <div id="comments" className="mb-8 scroll-mt-28 rounded-2xl bg-white p-6 shadow">
               <div className="flex items-center gap-5">
-                <Link to={getPostAuthorUrl(post, user)} aria-label={`View ${post.author || 'author'} profile`} className="flex-shrink-0 rounded-full transition hover:opacity-80">
+                <Link to={getPostAuthorUrl(post)} onClick={getPostAuthorClickHandler(post, user, navigate)} aria-label={`View ${post.author || 'author'} profile`} className="flex-shrink-0 rounded-full transition hover:opacity-80">
                   {authorProfilePhoto ? (
                     <img src={authorProfilePhoto} alt="Author profile" className="h-24 w-24 rounded-full object-cover" />
                   ) : (
@@ -597,7 +598,7 @@ const SingleBlog = () => {
                   )}
                 </Link>
                 <div className="min-w-0 flex-1">
-                  <Link to={getPostAuthorUrl(post, user)} className="text-lg font-semibold text-slate-900 transition hover:text-emerald-600">{post.author || 'Author'}</Link>
+                  <Link to={getPostAuthorUrl(post)} onClick={getPostAuthorClickHandler(post, user, navigate)} className="text-lg font-semibold text-slate-900 transition hover:text-emerald-600">{post.author || 'Author'}</Link>
                   {socialLinks.length > 0 && (
                     <div className="mt-1 flex items-center gap-3 text-slate-500">
                       {socialLinks.map((link) => (

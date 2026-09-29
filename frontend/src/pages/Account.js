@@ -4,7 +4,7 @@ import PageHeader from '../components/page-header';
 import AuthContext, { getDeletedPostIds } from '../context/auth-context';
 import { fetchComments, updatePost as updatePostRequest, updateProfile as updateProfileRequest, requestPasswordChange } from '../services/api';
 import { createPostSlug, getEditPostUrl, getPostUrl } from '../services/post-url';
-import { createAccountSlug, createAuthorSlug, getAccountUrl, getPostAuthorUrl, getProfileUrl } from '../services/account-url';
+import { createAccountSlug, createAuthorSlug, getAccountUrl, getPostAuthorClickHandler, getPostAuthorUrl, getProfileUrl } from '../services/account-url';
 import { isPostVisible } from '../services/post-status';
 import { loadPublicProfile } from '../services/public-data';
 
@@ -135,7 +135,7 @@ const getPersistedProfileBySlug = (slug) => {
 
   const globalPosts = JSON.parse(localStorage.getItem('testsite-posts') || '[]');
   const authorPosts = Array.isArray(globalPosts)
-    ? globalPosts.filter((post) => createAccountSlug(post.authorId?.split('@')[0] || post.author) === slug)
+    ? globalPosts.filter((post) => createAccountSlug(post.authorId?.split('@')[0] || post.author) === slug || createAuthorSlug(post.author) === slug)
     : [];
   const sourcePost = authorPosts[0];
   if (sourcePost) {
@@ -928,7 +928,7 @@ const Account = () => {
                         {post.status === 'draft' && <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700">Draft</span>}
                       </div>
                       <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-600">
-                        <span><i className="fas fa-user mr-1"></i>{post.status === 'draft' ? (post.author || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || 'Author') : <Link to={getPostAuthorUrl(post, user)} className="hover:text-emerald-600">{post.author || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || 'Author'}</Link>}</span>
+                        <span><i className="fas fa-user mr-1"></i>{post.status === 'draft' ? (post.author || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || 'Author') : <Link to={getPostAuthorUrl(post)} onClick={getPostAuthorClickHandler(post, user, navigate)} className="hover:text-emerald-600">{post.author || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || 'Author'}</Link>}</span>
                         <span><i className="far fa-calendar mr-1"></i>{post.date}</span>
                         {post.status === 'draft' ? (
                           <span><i className="far fa-comments mr-1"></i>{getCommentCount(post.id, commentCounts)} Comments</span>
