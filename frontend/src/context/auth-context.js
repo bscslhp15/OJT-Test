@@ -37,9 +37,9 @@ const removeDeletedPostsFromStorage = () => {
   }
 };
 
-const setStorageItemSafely = (key, value) => {
+const setStorageItemSafely = (key, value, storage = localStorage) => {
   try {
-    localStorage.setItem(key, value);
+    storage.setItem(key, value);
     return true;
   } catch (error) {
     if (error?.name !== 'QuotaExceededError') throw error;
@@ -49,6 +49,7 @@ const setStorageItemSafely = (key, value) => {
 };
 
 const clearPersistedAuth = () => {
+  sessionStorage.removeItem('testsite-user');
   localStorage.removeItem('testsite-user');
   for (let index = 0; index < localStorage.length; index += 1) {
     const key = localStorage.key(index);
@@ -66,7 +67,7 @@ export const AuthProvider = ({ children }) => {
 
   const [user, setUser] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+      return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null');
     } catch (error) {
       return null;
     }
@@ -155,16 +156,18 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (!hasHydratedUser.current) {
       hasHydratedUser.current = true;
+      localStorage.removeItem(STORAGE_KEY);
       if (user) {
         setUser(mergeStoredUser(user));
         return;
       }
+      return;
     }
 
     if (user) {
       const lightweightUser = { ...user };
       delete lightweightUser.posts;
-      setStorageItemSafely(STORAGE_KEY, JSON.stringify(lightweightUser));
+      setStorageItemSafely(STORAGE_KEY, JSON.stringify(lightweightUser), sessionStorage);
       const persistedUserKey = getPersistedUserKey(user);
       if (persistedUserKey) {
         setStorageItemSafely(persistedUserKey, JSON.stringify(lightweightUser));
