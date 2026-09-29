@@ -106,7 +106,7 @@ const Home = () => {
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
           <div>
-            <h3 className="text-3xl font-bold text-slate-900">Everything You Need to Publish</h3>
+            <h3 className="text-3xl font-bold text-slate-900">Everything You Need to Publishssssssss</h3>
             <p className="mt-4 text-slate-600">From your first draft to a growing archive, the platform gives you a simple place to create and share meaningful writing.</p>
           </div>
           <div>
