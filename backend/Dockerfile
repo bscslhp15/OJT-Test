@@ -4,8 +4,8 @@ ENV YII_DEBUG=false \
     YII_ENV=prod
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libonig-dev \
-    && docker-php-ext-install mbstring pdo_mysql \
+    && apt-get install -y --no-install-recommends libonig-dev libzip-dev unzip \
+    && docker-php-ext-install mbstring pdo_mysql zip \
     && a2enmod rewrite \
     && sed -ri 's!/var/www/html!/var/www/html/web!g' /etc/apache2/sites-available/*.conf \
     && sed -ri '/<Directory \/var\/www\/>/,/<\/Directory>/s/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf \
@@ -15,7 +15,7 @@ COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 
 WORKDIR /var/www/html
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+RUN COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
 
 COPY . .
 RUN mkdir -p runtime web/assets \
