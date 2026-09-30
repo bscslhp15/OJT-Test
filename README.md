@@ -1,1 +1,1 @@
-open this link: https://testsite-tau-nine.vercel.app/
+open this link to start: https://testsite-tau-nine.vercel.app/
