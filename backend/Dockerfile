@@ -6,6 +6,8 @@ ENV YII_DEBUG=false \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libonig-dev libzip-dev unzip \
     && docker-php-ext-install mbstring pdo_mysql zip \
+    && a2dismod mpm_event mpm_worker \
+    && a2enmod mpm_prefork \
     && a2enmod rewrite \
     && sed -ri 's!/var/www/html!/var/www/html/web!g' /etc/apache2/sites-available/*.conf \
     && sed -ri '/<Directory \/var\/www\/>/,/<\/Directory>/s/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf \
