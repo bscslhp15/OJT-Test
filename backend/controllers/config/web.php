@@ -9,12 +9,6 @@ if ($frontendOrigin) {
 
 $config = [
     'id' => 'testsite-backend',
-                [
-                    'class' => 'yii\\log\\StreamTarget',
-                    'url' => 'php://stderr',
-                    'levels' => ['error', 'warning'],
-                    'logVars' => [],
-                ],
     'basePath' => dirname(dirname(__DIR__)),
     'bootstrap' => ['log'],
     'components' => [
@@ -38,8 +32,8 @@ $config = [
             'enableSession' => false,
             'loginUrl' => null,
         ],
-        'errorHandler' => [
-            'errorAction' => 'site/error',
+        'view' => [
+            'class' => yii\web\View::class,
         ],
         'log' => [
             'traceLevel' => YII_DEBUG ? 3 : 0,

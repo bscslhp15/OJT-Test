@@ -14,10 +14,15 @@ class AuthController extends Controller
     public function behaviors()
     {
         $behaviors = parent::behaviors();
+        $allowedOrigins = ['http://localhost:3000', 'http://localhost'];
+        $frontendOrigin = getenv('TESTSITE_FRONTEND_ORIGIN');
+        if ($frontendOrigin) {
+            $allowedOrigins[] = $frontendOrigin;
+        }
         $behaviors['corsFilter'] = [
             'class' => \yii\filters\Cors::class,
             'cors' => [
-                'Origin' => ['http://localhost:3000', 'http://localhost'],
+                'Origin' => $allowedOrigins,
                 'Access-Control-Request-Method' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
                 'Access-Control-Allow-Credentials' => true,
                 'Access-Control-Allow-Headers' => ['*'],
