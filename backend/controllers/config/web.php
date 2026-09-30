@@ -1,6 +1,11 @@
 <?php
 $params = require __DIR__ . '/params.php';
 $db = require __DIR__ . '/db.php';
+$allowedOrigins = ['http://localhost:3000', 'http://localhost'];
+$frontendOrigin = getenv('TESTSITE_FRONTEND_ORIGIN');
+if ($frontendOrigin) {
+    $allowedOrigins[] = $frontendOrigin;
+}
 
 $config = [
     'id' => 'testsite-backend',
@@ -68,7 +73,7 @@ $config = [
     'as corsFilter' => [
         'class' => \yii\filters\Cors::class,
         'cors' => [
-            'Origin' => ['http://localhost:3000', 'http://localhost'],
+            'Origin' => $allowedOrigins,
             'Access-Control-Request-Method' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
             'Access-Control-Allow-Credentials' => true,
             'Access-Control-Allow-Headers' => ['*'],

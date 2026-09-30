@@ -1,13 +1,14 @@
 <?php
 
-$databaseHost = getenv('TESTSITE_DB_HOST') ?: 'sql302.infinityfree.com';
-$databaseName = getenv('TESTSITE_DB_NAME') ?: 'if0_42977499_TestSite';
-$databaseUser = getenv('TESTSITE_DB_USERNAME') ?: 'if0_42977499';
-$databasePassword = getenv('TESTSITE_DB_PASSWORD') ?: 'KR4xF760xSCBy';
+$databaseHost = getenv('TESTSITE_DB_HOST') ?: '127.0.0.1';
+$databasePort = getenv('TESTSITE_DB_PORT') ?: '3306';
+$databaseName = getenv('TESTSITE_DB_NAME') ?: 'testsite';
+$databaseUser = getenv('TESTSITE_DB_USERNAME') ?: 'root';
+$databasePassword = getenv('TESTSITE_DB_PASSWORD') ?: '';
 
 return [
-    'class' => 'yii\db\Connection',
-    'dsn' => "mysql:host={$databaseHost};dbname={$databaseName}",
+    'class' => 'yii\\db\\Connection',
+    'dsn' => "mysql:host={$databaseHost};port={$databasePort};dbname={$databaseName}",
     'username' => $databaseUser,
     'password' => $databasePassword,
     'charset' => 'utf8mb4',
