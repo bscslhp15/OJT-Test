@@ -9,6 +9,12 @@ if ($frontendOrigin) {
 
 $config = [
     'id' => 'testsite-backend',
+                [
+                    'class' => 'yii\\log\\StreamTarget',
+                    'url' => 'php://stderr',
+                    'levels' => ['error', 'warning'],
+                    'logVars' => [],
+                ],
     'basePath' => dirname(dirname(__DIR__)),
     'bootstrap' => ['log'],
     'components' => [
