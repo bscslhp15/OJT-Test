@@ -1,5 +1,5 @@
 import { createContext, useState, useEffect, useRef } from 'react';
-import { deletePostApi } from '../services/api';
+import { deletePostApi, updatePost as updatePostApi } from '../services/api';
 
 const AuthContext = createContext();
 const DELETED_POSTS_KEY = 'testsite-deleted-post-ids';
@@ -67,7 +67,7 @@ export const AuthProvider = ({ children }) => {
 
   const [user, setUser] = useState(() => {
     try {
-      return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null');
+      return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || localStorage.getItem(STORAGE_KEY) || 'null');
     } catch (error) {
       return null;
     }
@@ -156,7 +156,6 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (!hasHydratedUser.current) {
       hasHydratedUser.current = true;
-      localStorage.removeItem(STORAGE_KEY);
       if (user) {
         setUser(mergeStoredUser(user));
         return;
@@ -168,6 +167,7 @@ export const AuthProvider = ({ children }) => {
       const lightweightUser = { ...user };
       delete lightweightUser.posts;
       setStorageItemSafely(STORAGE_KEY, JSON.stringify(lightweightUser), sessionStorage);
+      setStorageItemSafely(STORAGE_KEY, JSON.stringify(lightweightUser));
       const persistedUserKey = getPersistedUserKey(user);
       if (persistedUserKey) {
         setStorageItemSafely(persistedUserKey, JSON.stringify(lightweightUser));
@@ -289,8 +289,48 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
+  const trashPost = async (postId, previousStatus = 'published') => {
+    const authKey = user?.authKey || user?.auth_key;
+    const originalStatus = String(previousStatus || 'published');
+    if (originalStatus.startsWith('trash:') || originalStatus === 'trash') return;
+    const trashedStatus = `trash:${originalStatus}`;
+
+    if (authKey && /^\d+$/.test(String(postId))) {
+      try {
+        await updatePostApi(postId, { authKey, status: trashedStatus });
+      } catch (error) {
+        if (error?.response?.status !== 404) throw error;
+        console.warn('Post is not available in the backend; moving the local copy to Trash.', postId);
+      }
+    }
+
+    const updatePosts = (posts) => Array.isArray(posts)
+      ? posts.map((post) => String(post.id) === String(postId) ? { ...post, status: trashedStatus } : post)
+      : posts;
+
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key || (!key.startsWith('testsite-posts-') && !key.startsWith('testsite-drafts-') && !key.startsWith('testsite-user-persist-') && key !== 'testsite-posts')) continue;
+      try {
+        const storedValue = JSON.parse(localStorage.getItem(key) || 'null');
+        if (key === 'testsite-posts' || key.startsWith('testsite-posts-') || key.startsWith('testsite-drafts-')) {
+          localStorage.setItem(key, JSON.stringify(updatePosts(storedValue)));
+        } else if (Array.isArray(storedValue?.posts)) {
+          localStorage.setItem(key, JSON.stringify({ ...storedValue, posts: updatePosts(storedValue.posts) }));
+        }
+      } catch (error) {
+        console.error(`Unable to move post ${postId} to trash in ${key}.`, error);
+      }
+    }
+
+    setUser((prev) => {
+      if (!prev) return prev;
+      return { ...prev, posts: updatePosts(prev.posts) };
+    });
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, updateProfile, deletePost }}>
+    <AuthContext.Provider value={{ user, login, logout, updateProfile, deletePost, trashPost }}>
       {children}
     </AuthContext.Provider>
   );

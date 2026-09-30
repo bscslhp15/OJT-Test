@@ -349,7 +349,7 @@ const formatPublishDate = (value) => {
 const PostEditor = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, updateProfile, deletePost } = useContext(AuthContext);
+  const { user, updateProfile, trashPost } = useContext(AuthContext);
   const isEdit = Boolean(id);
   const [editingPostId, setEditingPostId] = useState(null);
   const [form, setForm] = useState({
@@ -357,12 +357,14 @@ const PostEditor = () => {
     slug: '',
     category: 'Uncategorized',
     tags: '',
+    status: 'published',
     image: null,
     content: ''
   });
   const [isDirty, setIsDirty] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showTrashConfirm, setShowTrashConfirm] = useState(false);
+  const [trashError, setTrashError] = useState('');
   const [showPublishSchedule, setShowPublishSchedule] = useState(false);
   const [isPermalinkEditing, setIsPermalinkEditing] = useState(false);
   const [permalinkDraft, setPermalinkDraft] = useState('');
@@ -596,6 +598,7 @@ const PostEditor = () => {
           slug: normalizeSavedSlug(existingPost.slug, existingPost.title),
           category: existingPost.category || 'Uncategorized',
           tags: Array.isArray(existingPost.tags) ? existingPost.tags.join(', ') : existingPost.tags || '',
+          status: existingPost.status || 'published',
           image: existingPost.featuredImage || existingPost.image || null,
           content: existingPost.content || ''
         });
@@ -617,6 +620,7 @@ const PostEditor = () => {
         slug: '',
         category: 'Uncategorized',
         tags: '',
+        status: 'published',
         image: null,
         content: ''
       });
@@ -1935,45 +1939,73 @@ const PostEditor = () => {
   };
 
   const handleMoveToTrash = () => {
+    setTrashError('');
     setShowTrashConfirm(true);
   };
 
-  const confirmMoveToTrash = () => {
-    deletePost(editingPostId || id);
-    const draftKey = `testsite-drafts-${String(user?.email || user?.username || 'anonymous').toLowerCase()}`;
-    const savedDrafts = JSON.parse(localStorage.getItem(draftKey) || '[]');
-    localStorage.setItem(draftKey, JSON.stringify(savedDrafts.filter((draft) => String(draft.id) !== String(editingPostId || id))));
-    setShowTrashConfirm(false);
-    navigate(getAccountUrl(user));
+  const confirmMoveToTrash = async () => {
+    try {
+      await trashPost(editingPostId || id, form.status || 'published');
+      setShowTrashConfirm(false);
+      navigate(getAccountUrl(user));
+    } catch (error) {
+      setTrashError(error?.response?.data?.message || 'Could not move this post to Trash. Please try again.');
+    }
   };
 
   const handlePreview = () => {
-    const previewWindow = window.open('', '_blank');
-    if (!previewWindow) return;
-    const title = String(form.title || 'Untitled')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-    const content = blocks.map((block) => {
-      if (block.type === 'image' && block.data?.url) {
-        return `<figure><img src="${block.data.url}" alt="${block.data.caption || 'Post image'}"><figcaption>${block.data.caption || ''}</figcaption></figure>`;
-      }
-
+    const previewId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const publishedDate = getCurrentPublishedDate();
+    const previewBlocks = blocks.map((block) => {
       const editor = editorRefs.current[block.id];
-      return editor?.innerHTML || block.data?.text || '';
-    }).join('<p><br></p>');
+      return editor
+        ? { ...block, data: { ...block.data, text: editor.innerHTML } }
+        : block;
+    });
+    const authorName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() || user?.username || 'Author';
+    const authorId = user?.email || user?.username || 'author';
+    const previewPost = {
+      id: previewId,
+      title: form.title || 'Untitled',
+      slug: form.slug?.trim() || createPostSlug(form.title || 'Untitled') || previewId,
+      category: form.category,
+      status: 'published',
+      tags: [...new Set([
+        ...(form.tags ? form.tags.split(',').map((tag) => tag.trim()).filter(Boolean) : []),
+        ...(tagInput.trim() ? [tagInput.trim()] : [])
+      ])],
+      image: form.image || '',
+      featuredImage: form.image || '',
+      content: normalizeStoredContent(JSON.stringify({ time: Date.now(), blocks: previewBlocks })),
+      date: publishedDate.toLocaleDateString(),
+      createdAt: publishedDate.toISOString(),
+      publishedAt: publishedDate.toISOString(),
+      author: authorName,
+      authorId,
+      authorAvatar: user?.profile_photo || (user?.email ? localStorage.getItem(`testsite-profile-${user.email.toLowerCase()}`) : ''),
+      authorBio: user?.bio || '',
+      authorSocial: user?.social || {},
+      allowComments: false
+    };
+    const previewKey = `testsite-preview-post-${previewId}`;
+    const previewPrefix = 'testsite-preview-post-';
+    const previewExpiry = Date.now() - 24 * 60 * 60 * 1000;
 
-    previewWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>
-      body{max-width:860px;margin:0 auto;padding:48px 24px;color:#334155;font:16px/1.75 system-ui,sans-serif}
-      h1{color:#0f172a;line-height:1.2} h2,h3,h4,h5,h6{margin:1.5rem 0 .75rem;color:#0f172a;line-height:1.3}
-      p{margin:1rem 0;font-size:1rem;line-height:1.75} img{max-width:100%;height:auto} figure{margin:2rem 0} figcaption{color:#64748b;font-size:.875rem;text-align:center}
-      blockquote{border-left:4px solid #334155;margin:1.5rem 0;padding-left:1rem;color:#475569;font-style:italic}
-      ul{list-style-type:disc;padding-left:2rem} ol{list-style-type:decimal;padding-left:2rem} ul,ol,li{font-size:1rem;line-height:1.75}
-      [data-read-more="true"], [data-page-break="true"]{display:flex;align-items:center;gap:.75rem;margin:1.5rem 0;color:#94a3b8;font-size:.7rem;line-height:1;text-align:center;white-space:nowrap}
-      [data-read-more="true"]::before,[data-read-more="true"]::after,[data-page-break="true"]::before,[data-page-break="true"]::after{flex:1;border-top:2px dashed #cbd5e1;content:''}
-    </style></head><body><h1>${title}</h1><main>${content}</main></body></html>`);
-    previewWindow.document.close();
+    for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+      const key = localStorage.key(index);
+      if (!key?.startsWith(previewPrefix)) continue;
+      const createdAt = Number(key.slice(previewPrefix.length).split('-')[0]);
+      if (Number.isFinite(createdAt) && createdAt < previewExpiry) localStorage.removeItem(key);
+    }
+
+    try {
+      localStorage.setItem(previewKey, JSON.stringify(previewPost));
+    } catch (error) {
+      window.alert('Could not create the preview. Free up browser storage and try again.');
+      return;
+    }
+
+    window.open(`${getPostUrl(previewPost)}?preview=${encodeURIComponent(previewId)}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleLeave = (target = getAccountUrl(user)) => {
@@ -2512,7 +2544,8 @@ const PostEditor = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4">
           <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl">
             <h3 className="text-xl font-semibold text-slate-900">Move post to trash?</h3>
-            <p className="mt-4 text-slate-600">This post will be deleted and removed from your blog.</p>
+            <p className="mt-4 text-slate-600">This post will move to Admin Posts → Trash and can be restored later.</p>
+            {trashError && <p role="alert" className="mt-3 text-sm text-red-700">{trashError}</p>}
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
               <button type="button" onClick={() => setShowTrashConfirm(false)} className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">
                 Cancel

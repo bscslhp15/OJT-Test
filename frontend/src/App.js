@@ -1,6 +1,10 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useContext } from 'react';
 import { AuthProvider } from './context/auth-context';
+import AuthContext from './context/auth-context';
 import Layout from './components/Layout';
+import AdminLayout, { AdminPage } from './components/Admin';
+import AdminPosts from './components/AdminPosts';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -18,11 +22,40 @@ import Team from './pages/Team';
 import ForgotPassword from './pages/forgot-password';
 import ResetPassword from './pages/reset-password';
 
+const RequireAdmin = () => {
+  const { user } = useContext(AuthContext);
+  return user?.isAdmin ? <Outlet /> : <Navigate to={user ? '/' : '/login'} replace />;
+};
+
+const LegacyAdminRedirect = () => {
+  const location = useLocation();
+  const destination = location.pathname === '/admin'
+    ? '/testsite/admin/dashboard'
+    : `/testsite${location.pathname}`;
+  return <Navigate to={`${destination}${location.search}${location.hash}`} replace />;
+};
+
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          <Route element={<RequireAdmin />}>
+            <Route path="admin/*" element={<LegacyAdminRedirect />} />
+            <Route path="testsite/admin" element={<AdminLayout />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<AdminPage title="Dashboard" />} />
+              <Route path="posts">
+                <Route index element={<AdminPosts />} />
+                <Route path="add" element={<AdminPage title="Add Post" />} />
+                <Route path="categories" element={<AdminPage title="Categories" />} />
+                <Route path="tags" element={<AdminPage title="Tags" />} />
+              </Route>
+              <Route path="users" element={<AdminPage title="Users" />} />
+              <Route path="users/add" element={<AdminPage title="Add User" />} />
+              <Route path="users/profile" element={<AdminPage title="Profile" />} />
+            </Route>
+          </Route>
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
             <Route path="login" element={<Login />} />

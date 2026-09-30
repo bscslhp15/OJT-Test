@@ -3,7 +3,7 @@
 
 cd "C:\xampp\htdocs\THESIS\OJT-Test\frontend"
 npm install
-npm startBio
+npm start
 http://localhost:3000
 
 http://localhost:3000/leyharvie?view=profile

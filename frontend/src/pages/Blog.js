@@ -98,11 +98,12 @@ const getPostSortTimestamp = (post) => {
 };
 
 const Blog = () => {
-  const { user, updateProfile, deletePost } = useContext(AuthContext);
+  const { user, updateProfile, trashPost } = useContext(AuthContext);
   const navigate = useNavigate();
   const { categorySlug, tagSlug } = useParams();
   const [searchParams] = useSearchParams();
   const [trashConfirmPostId, setTrashConfirmPostId] = useState(null);
+  const [trashError, setTrashError] = useState('');
   const [quickEditPostId, setQuickEditPostId] = useState(null);
   const [quickEditForm, setQuickEditForm] = useState({});
   const selectedCategories = categorySlug ? [categorySlug] : [];
@@ -220,10 +221,19 @@ const Blog = () => {
     );
   };
 
-  const handleConfirmTrashDelete = () => {
+  const handleConfirmTrashDelete = async () => {
     if (!trashConfirmPostId) return;
-    deletePost(trashConfirmPostId);
-    setTrashConfirmPostId(null);
+    const post = mergedPosts.find((item) => String(item.id) === String(trashConfirmPostId));
+    try {
+      await trashPost(trashConfirmPostId, post?.status);
+      setPublicPosts((current) => current.map((item) => String(item.id) === String(trashConfirmPostId)
+        ? { ...item, status: `trash:${post?.status || 'published'}` }
+        : item));
+      setTrashConfirmPostId(null);
+      setTrashError('');
+    } catch (error) {
+      setTrashError(error?.response?.data?.message || 'Could not move this post to Trash. Please try again.');
+    }
   };
 
   const beginQuickEdit = (post) => {
@@ -235,7 +245,7 @@ const Blog = () => {
       title: post.title || '',
       slug: post.slug || createPostSlug(post.title || ''),
       date: validDate.toISOString().slice(0, 16),
-      category: normalizeCategory(post.category || 'Uncategorized'),
+      categories: getPostCategories(post.category || 'Uncategorized'),
       tags: Array.isArray(post.tags) ? post.tags.join(', ') : (post.tags || ''),
       allowComments: post.allowComments !== false,
       status: post.status || 'published'
@@ -248,7 +258,10 @@ const Blog = () => {
     const nextDate = quickEditForm.date ? new Date(quickEditForm.date) : new Date(post?.publishedAt || post?.date || Date.now());
     const normalizedTitle = String(quickEditForm.title || post.title || 'Untitled').trim() || 'Untitled';
     const normalizedSlug = String(quickEditForm.slug || '').trim() || createPostSlug(normalizedTitle) || String(post.id || 'post');
-    const normalizedCategory = normalizeCategory(quickEditForm.category || post.category || 'Uncategorized');
+    const selectedCategories = Array.isArray(quickEditForm.categories) ? quickEditForm.categories : [];
+    const normalizedCategory = selectedCategories.length
+      ? selectedCategories.map(normalizeCategory).join(', ')
+      : 'Uncategorized';
     const nextPost = {
       ...post,
       id: post.id,
@@ -352,7 +365,7 @@ const Blog = () => {
                         <span className="pointer-events-none text-slate-400">|</span>
                         <button type="button" onClick={() => beginQuickEdit(post)} className="cursor-pointer text-[#22C55E] hover:underline">Quick Edit</button>
                         <span className="pointer-events-none text-slate-400">|</span>
-                        <button type="button" onClick={() => setTrashConfirmPostId(post.id)} className="cursor-pointer text-[#22C55E] hover:underline">Trash</button>
+                        <button type="button" onClick={() => { setTrashError(''); setTrashConfirmPostId(post.id); }} className="cursor-pointer text-[#22C55E] hover:underline">Trash</button>
                         <span className="pointer-events-none text-slate-400">|</span>
                       </>
                     ) : null}
@@ -399,8 +412,14 @@ const Blog = () => {
                               <label key={category} className="flex items-center gap-2 text-sm text-slate-600">
                                 <input
                                   type="checkbox"
-                                  checked={quickEditForm.category === category}
-                                  onChange={() => setQuickEditForm((current) => ({ ...current, category }))}
+                                  checked={(quickEditForm.categories || []).includes(category)}
+                                  onChange={() => setQuickEditForm((current) => {
+                                    const selected = Array.isArray(current.categories) ? current.categories : [];
+                                    const next = selected.includes(category)
+                                      ? selected.filter((item) => item !== category)
+                                      : [...selected, category];
+                                    return { ...current, categories: next.length ? next : ['Uncategorized'] };
+                                  })}
                                   className="green-checkbox"
                                 />
                                 <span>{category}</span>
@@ -565,7 +584,8 @@ const Blog = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4">
           <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl">
             <h3 className="text-xl font-semibold text-slate-900">Move post to trash?</h3>
-            <p className="mt-4 text-slate-600">This post will be deleted and removed from your blog.</p>
+            <p className="mt-4 text-slate-600">This post will move to Admin Posts → Trash and can be restored later.</p>
+            {trashError && <p role="alert" className="mt-3 text-sm text-red-700">{trashError}</p>}
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
               <button type="button" onClick={() => setTrashConfirmPostId(null)} className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">
                 Cancel

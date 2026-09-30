@@ -11,6 +11,12 @@ class PostController extends ActiveController
 {
     public $modelClass = Post::class;
 
+    private function isAdminUser($user)
+    {
+        $adminEmail = strtolower(trim((string) Yii::$app->params['adminEmail']));
+        return $adminEmail !== '' && strtolower(trim((string) $user->email)) === $adminEmail;
+    }
+
     public function actions()
     {
         $actions = parent::actions();
@@ -66,7 +72,9 @@ class PostController extends ActiveController
         $body = Yii::$app->request->bodyParams;
         $authKey = $body['authKey'] ?? null;
         $user = $authKey ? User::findOne(['auth_key' => $authKey]) : Yii::$app->user->identity;
-        if (!$post || !$user || $post->author_id !== $user->id) {
+        $isOwner = $post && $user && (string) $post->author_id === (string) $user->id;
+        $isAdmin = $user && $this->isAdminUser($user);
+        if (!$post || !$user || (!$isOwner && !$isAdmin)) {
             throw new ForbiddenHttpException('You can only edit your own posts.');
         }
         $post->title = $body['title'] ?? $post->title;
@@ -77,6 +85,13 @@ class PostController extends ActiveController
         $post->tags = array_key_exists('tags', $body) ? json_encode($body['tags']) : $post->tags;
         $post->status = $body['status'] ?? $post->status;
         if (array_key_exists('allowComments', $body)) $post->allow_comments = (bool)$body['allowComments'];
+        if (array_key_exists('created_at', $body)) {
+            $createdAt = strtotime((string) $body['created_at']);
+            if ($createdAt === false) {
+                throw new \yii\web\BadRequestHttpException('The post date is invalid.');
+            }
+            $post->created_at = date('Y-m-d H:i:s', $createdAt);
+        }
         if ($post->save()) {
             return ['success' => true, 'post' => $post];
         }
@@ -89,7 +104,9 @@ class PostController extends ActiveController
         $body = Yii::$app->request->bodyParams;
         $authKey = $body['authKey'] ?? null;
         $user = $authKey ? User::findOne(['auth_key' => $authKey]) : Yii::$app->user->identity;
-        if (!$post || !$user || $post->author_id !== $user->id) {
+        $isOwner = $post && $user && (string) $post->author_id === (string) $user->id;
+        $isAdmin = $user && $this->isAdminUser($user);
+        if (!$post || !$user || (!$isOwner && !$isAdmin)) {
             throw new ForbiddenHttpException('You can only delete your own posts.');
         }
         $post->delete();

@@ -199,6 +199,7 @@ class AuthController extends Controller
                 'firstName' => $user->first_name,
                 'lastName' => $user->last_name,
                 'email' => $user->email,
+                'isAdmin' => strtolower(trim((string) $user->email)) === strtolower(trim((string) Yii::$app->params['adminEmail'])),
                 'confirmed' => $user->confirmed,
                 'username' => $user->username,
                 'authKey' => $user->auth_key,

@@ -1,6 +1,6 @@
 <?php
 return [
-    'adminEmail' => 'admin@example.com',
+    'adminEmail' => getenv('TESTSITE_ADMIN_EMAIL') ?: 'leyharviep@gmail.com',
     'supportEmail' => 'support@example.com',
     'contactRecipient' => getenv('TESTSITE_CONTACT_RECIPIENT') ?: (getenv('TESTSITE_MAIL_FROM') ?: ''),
     'frontendUrl' => 'http://localhost:3000',

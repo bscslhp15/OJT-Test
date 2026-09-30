@@ -2,12 +2,22 @@ import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useContext, useEffect, useState } from 'react';
 import PageHeader from '../components/page-header';
 import AuthContext from '../context/auth-context';
+import { isPostVisible } from '../services/post-status';
 import { createPostSlug, getEditPostUrl, getPostUrl } from '../services/post-url';
 import { getPostAuthorClickHandler, getPostAuthorUrl } from '../services/account-url';
 import { loadPublicPosts } from '../services/public-data';
 import { createComment as createCommentRequest, fetchComments } from '../services/api';
 
 const defaultProfile = '/images/default-profile.jpg';
+const readPreviewPost = (previewId) => {
+  if (!previewId) return null;
+  try {
+    const post = JSON.parse(localStorage.getItem(`testsite-preview-post-${previewId}`) || 'null');
+    return post && String(post.id) === String(previewId) ? post : null;
+  } catch (error) {
+    return null;
+  }
+};
 const legacyCategories = new Set(['General', 'Design', 'Development', 'Branding', 'Marketing']);
 const normalizeCategory = (category) => {
   const value = String(category || '').trim();
@@ -186,8 +196,11 @@ const SingleBlog = () => {
   const { id, slug, year, month, day } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, deletePost } = useContext(AuthContext);
+  const previewId = new URLSearchParams(location.search).get('preview');
+  const [previewPost] = useState(() => readPreviewPost(previewId));
+  const { user, trashPost } = useContext(AuthContext);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [trashError, setTrashError] = useState('');
   const [comments, setComments] = useState([]);
   const [commentName, setCommentName] = useState('');
   const [commentEmail, setCommentEmail] = useState('');
@@ -200,6 +213,10 @@ const SingleBlog = () => {
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
 
   useEffect(() => {
+    if (previewId) {
+      setIsLoadingPosts(false);
+      return undefined;
+    }
     let isMounted = true;
     loadPublicPosts().then((posts) => {
       if (!isMounted) return;
@@ -209,7 +226,7 @@ const SingleBlog = () => {
       if (isMounted) setIsLoadingPosts(false);
     });
     return () => { isMounted = false; };
-  }, [user?.email]);
+  }, [user?.email, previewId]);
 
   useEffect(() => {
     setCommentName(user?.confirmed ? (user.username || '') : '');
@@ -233,9 +250,9 @@ const SingleBlog = () => {
   
   const globalPostsEnriched = globalPosts.map((post) => ({ ...enrichPost(post), category: normalizeCategory(post.category) }));
   const userPostsEnriched = userPosts.map((post) => ({ ...enrichPost(post), category: normalizeCategory(post.category) }));
-  const allPosts = [...globalPostsEnriched, ...userPostsEnriched.filter((post) => !globalPostsEnriched.some((item) => String(item.id) === String(post.id)))];
+  const allPosts = [...globalPostsEnriched, ...userPostsEnriched.filter((post) => !globalPostsEnriched.some((item) => String(item.id) === String(post.id)))].filter(isPostVisible);
   const targetSlug = String(slug || id || '').trim();
-  const post = allPosts.find((item) => {
+  const post = previewPost || allPosts.find((item) => {
     const itemSlug = String(item.slug || createPostSlug(item.title) || item.id || '').trim();
     const itemDate = item?.publishedAt || item?.createdAt || item?.date;
     const parsedDate = itemDate ? new Date(itemDate) : null;
@@ -262,7 +279,7 @@ const SingleBlog = () => {
   }, [post?.title]);
 
   useEffect(() => {
-    if (!post?.id) return;
+    if (!post?.id || previewPost) return;
     const localComments = JSON.parse(localStorage.getItem(`testsite-comments-${post.id}`) || '[]');
     fetchComments(post.id).then(({ data }) => {
       const remoteComments = Array.isArray(data) ? data : [];
@@ -298,7 +315,7 @@ const SingleBlog = () => {
 
       syncComments();
     }).catch(() => setComments(localComments));
-  }, [post?.id, user?.authKey, user?.auth_key]);
+  }, [post?.id, previewPost, user?.authKey, user?.auth_key]);
 
   useEffect(() => {
     if (location.hash !== '#comments' || !post) return;
@@ -306,13 +323,18 @@ const SingleBlog = () => {
   }, [location.hash, post]);
 
   const handleDeletePost = () => {
+    setTrashError('');
     setIsDeleteModalOpen(true);
   };
 
   const confirmDeletePost = async () => {
-    await deletePost(post.id);
-    setIsDeleteModalOpen(false);
-    navigate('/blog');
+    try {
+      await trashPost(post.id, post.status);
+      setIsDeleteModalOpen(false);
+      navigate('/blog');
+    } catch (error) {
+      setTrashError(error?.response?.data?.message || 'Could not move this post to Trash. Please try again.');
+    }
   };
 
   if (isLoadingPosts) {
@@ -389,7 +411,7 @@ const SingleBlog = () => {
     .filter(Boolean);
 
   const authorIdValue = String(post.authorId ?? post.author_id ?? '');
-  const isAuthor = !!user && (
+  const isAuthor = !previewPost && !!user && (
     (post.authorUserId && String(post.authorUserId) === String(user.id)) ||
     (post.author_id && String(post.author_id) === String(user.id)) ||
     (authorIdValue && (
@@ -727,10 +749,11 @@ const SingleBlog = () => {
       {isDeleteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <h3 className="text-xl font-semibold text-slate-900">Delete this post?</h3>
+            <h3 className="text-xl font-semibold text-slate-900">Move this post to Trash?</h3>
             <p className="mt-3 text-sm text-slate-600">
-              This action cannot be undone. The blog post will be removed permanently.
+              The post will be hidden from the public blog. You can restore it from the admin Trash.
             </p>
+            {trashError && <p role="alert" className="mt-3 text-sm text-red-700">{trashError}</p>}
 
             <div className="mt-6 flex justify-end gap-3">
               <button
@@ -745,7 +768,7 @@ const SingleBlog = () => {
                 onClick={confirmDeletePost}
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
               >
-                Delete
+                Move to Trash
               </button>
             </div>
           </div>

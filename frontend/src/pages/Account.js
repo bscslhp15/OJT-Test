@@ -6,7 +6,7 @@ import { fetchComments, updatePost as updatePostRequest, updateProfile as update
 import { createPostSlug, getEditPostUrl, getPostUrl } from '../services/post-url';
 import { createAccountSlug, createAuthorSlug, getAccountUrl, getPostAuthorClickHandler, getPostAuthorUrl, getProfileUrl } from '../services/account-url';
 import { isPostVisible } from '../services/post-status';
-import { loadPublicProfile } from '../services/public-data';
+import { loadPublicPosts, loadPublicProfile } from '../services/public-data';
 
 const firstRichTextToPlainText = (html) => {
   const container = document.createElement('div');
@@ -254,19 +254,21 @@ const PublicProfile = ({ profile }) => {
 };
 
 const Account = () => {
-  const { user, updateProfile, deletePost } = useContext(AuthContext);
+  const { user, updateProfile, trashPost } = useContext(AuthContext);
   const { username, authorSlug } = useParams();
   const profileSlug = authorSlug || username;
   const location = useLocation();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [trashConfirmPostId, setTrashConfirmPostId] = useState(null);
+  const [trashError, setTrashError] = useState('');
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [passwordChangeError, setPasswordChangeError] = useState('');
   const [passwordChangeMessage, setPasswordChangeMessage] = useState('');
   const [passwordRequestExpiresAt, setPasswordRequestExpiresAt] = useState(0);
   const [passwordRequestRemaining, setPasswordRequestRemaining] = useState(0);
   const [publicProfileState, setPublicProfileState] = useState(null);
+  const [availablePosts, setAvailablePosts] = useState([]);
   const [quickEditPostId, setQuickEditPostId] = useState(null);
   const [quickEditForm, setQuickEditForm] = useState({});
   const [commentCounts, setCommentCounts] = useState({});
@@ -319,6 +321,14 @@ const Account = () => {
     }
     return () => { isMounted = false; };
   }, [isPublicProfile, profileSlug, user]);
+
+  useEffect(() => {
+    let isMounted = true;
+    loadPublicPosts().then((loadedPosts) => {
+      if (isMounted) setAvailablePosts(Array.isArray(loadedPosts) ? loadedPosts : []);
+    });
+    return () => { isMounted = false; };
+  }, [user?.email]);
 
   useEffect(() => {
     let isMounted = true;
@@ -524,15 +534,24 @@ const Account = () => {
     ...localPosts.filter((post) => !publicPosts.some((remotePost) => String(remotePost.id) === String(post.id)))
   ]
     .filter((post) => !deletedPostIds.has(String(post.id)))
+    .filter(isPostVisible)
     .filter((post, index, allPosts) => allPosts.findIndex((item) => String(item.id) === String(post.id)) === index)
     .sort((left, right) => getPostSortTimestamp(right) - getPostSortTimestamp(left));
+  const quickEditCategories = [...new Set([...posts, ...availablePosts]
+    .flatMap((post) => String(post.category || '').split(',').map((category) => category.trim()).filter(Boolean)))].sort();
   const totalPages = Math.max(1, Math.ceil(posts.length / postsPerPage));
   const paginatedPosts = posts.slice((currentPage - 1) * postsPerPage, currentPage * postsPerPage);
 
-  const handleConfirmTrashDelete = () => {
+  const handleConfirmTrashDelete = async () => {
     if (!trashConfirmPostId) return;
-    deletePost(trashConfirmPostId);
-    setTrashConfirmPostId(null);
+    const post = posts.find((item) => String(item.id) === String(trashConfirmPostId));
+    try {
+      await trashPost(trashConfirmPostId, post?.status);
+      setTrashConfirmPostId(null);
+      setTrashError('');
+    } catch (error) {
+      setTrashError(error?.response?.data?.message || 'Could not move this post to Trash. Please try again.');
+    }
   };
 
   const beginQuickEdit = (post) => {
@@ -544,7 +563,7 @@ const Account = () => {
       title: post.title || '',
       slug: post.slug || createPostSlug(post.title || ''),
       date: validDate.toISOString().slice(0, 16),
-      category: post.category || 'Uncategorized',
+      categories: String(post.category || 'Uncategorized').split(',').map((category) => category.trim()).filter(Boolean),
       tags: Array.isArray(post.tags) ? post.tags.join(', ') : (post.tags || ''),
       allowComments: post.allowComments !== false,
       status: post.status || 'published'
@@ -557,7 +576,8 @@ const Account = () => {
     const nextDate = quickEditForm.date ? new Date(quickEditForm.date) : new Date(post?.publishedAt || post?.date || Date.now());
     const normalizedTitle = String(quickEditForm.title || post.title || 'Untitled').trim() || 'Untitled';
     const normalizedSlug = String(quickEditForm.slug || '').trim() || createPostSlug(normalizedTitle) || String(post.id || 'post');
-    const normalizedCategory = String(quickEditForm.category || post.category || 'Uncategorized').trim() || 'Uncategorized';
+    const selectedCategories = Array.isArray(quickEditForm.categories) ? quickEditForm.categories : [];
+    const normalizedCategory = selectedCategories.length ? selectedCategories.join(', ') : 'Uncategorized';
     const nextPost = {
       ...post,
       id: post.id,
@@ -942,7 +962,7 @@ const Account = () => {
                         <span className="pointer-events-none text-slate-400">|</span>
                         <button type="button" onClick={() => beginQuickEdit(post)} className="cursor-pointer text-[#22C55E] hover:underline">Quick Edit</button>
                         <span className="pointer-events-none text-slate-400">|</span>
-                        <button type="button" onClick={() => setTrashConfirmPostId(post.id)} className="cursor-pointer text-[#22C55E] hover:underline">Trash</button>
+                        <button type="button" onClick={() => { setTrashError(''); setTrashConfirmPostId(post.id); }} className="cursor-pointer text-[#22C55E] hover:underline">Trash</button>
                         <span className="pointer-events-none text-slate-400">|</span>
                         <Link to={getPostUrl(post)} className="cursor-pointer text-[#22C55E] hover:underline">View</Link>
                       </div>
@@ -983,19 +1003,19 @@ const Account = () => {
                             <div className="space-y-3">
                               <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Categories</span>
                               <div className="max-h-44 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">
-                                {Object.keys(
-                                  posts.reduce((grouped, entry) => {
-                                    if (entry.category) grouped[entry.category] = true;
-                                    return grouped;
-                                  }, {})
-                                ).map((category) => (
+                                {quickEditCategories.map((category) => (
                                   <label key={category} className="flex items-center gap-2 text-sm text-slate-600">
                                     <input
-                                      type="radio"
-                                      name={`quick-edit-category-${post.id}`}
-                                      checked={quickEditForm.category === category}
-                                      onChange={() => setQuickEditForm((current) => ({ ...current, category }))}
-                                      className="h-4 w-4 accent-[#22C55E]"
+                                      type="checkbox"
+                                      checked={(quickEditForm.categories || []).includes(category)}
+                                      onChange={() => setQuickEditForm((current) => {
+                                        const selected = Array.isArray(current.categories) ? current.categories : [];
+                                        const next = selected.includes(category)
+                                          ? selected.filter((item) => item !== category)
+                                          : [...selected, category];
+                                        return { ...current, categories: next.length ? next : ['Uncategorized'] };
+                                      })}
+                                      className="green-checkbox"
                                     />
                                     <span>{category}</span>
                                   </label>
@@ -1019,7 +1039,7 @@ const Account = () => {
                                   type="checkbox"
                                   checked={quickEditForm.allowComments !== false}
                                   onChange={(event) => setQuickEditForm((current) => ({ ...current, allowComments: event.target.checked }))}
-                                  className="h-4 w-4 accent-[#22C55E]"
+                                  className="green-checkbox"
                                 />
                                 Allow Comments
                               </label>
@@ -1078,7 +1098,8 @@ const Account = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4">
           <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl">
             <h3 className="text-xl font-semibold text-slate-900">Move post to trash?</h3>
-            <p className="mt-4 text-slate-600">This post will be deleted and removed from your blog.</p>
+            <p className="mt-4 text-slate-600">This post will move to Admin Posts → Trash and can be restored later.</p>
+            {trashError && <p role="alert" className="mt-3 text-sm text-red-700">{trashError}</p>}
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
               <button type="button" onClick={() => setTrashConfirmPostId(null)} className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">
                 Cancel
