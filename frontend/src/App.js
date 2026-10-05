@@ -4,7 +4,10 @@ import { AuthProvider } from './context/auth-context';
 import AuthContext from './context/auth-context';
 import Layout from './components/Layout';
 import AdminLayout, { AdminPage } from './components/Admin';
+import AdminCategories from './components/AdminCategories';
+import AdminTags from './components/AdminTags';
 import AdminPosts from './components/AdminPosts';
+import AdminUsers from './components/AdminUsers';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -48,10 +51,10 @@ function App() {
               <Route path="posts">
                 <Route index element={<AdminPosts />} />
                 <Route path="add" element={<AdminPage title="Add Post" />} />
-                <Route path="categories" element={<AdminPage title="Categories" />} />
-                <Route path="tags" element={<AdminPage title="Tags" />} />
+                <Route path="categories" element={<AdminCategories />} />
+                <Route path="tags" element={<AdminTags />} />
               </Route>
-              <Route path="users" element={<AdminPage title="Users" />} />
+              <Route path="users" element={<AdminUsers />} />
               <Route path="users/add" element={<AdminPage title="Add User" />} />
               <Route path="users/profile" element={<AdminPage title="Profile" />} />
             </Route>

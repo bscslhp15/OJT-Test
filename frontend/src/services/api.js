@@ -9,6 +9,8 @@ const api = axios.create({
 
 export const registerUser = (payload) => api.post('/auth/register', payload);
 export const loginUser = (payload) => api.post('/auth/login', payload);
+export const fetchAdminUsers = (authKey) => api.get('/auth/users', { headers: { 'X-Auth-Key': authKey } });
+export const applyAdminUserBulkAction = (authKey, payload) => api.post('/auth/users/bulk-action', payload, { headers: { 'X-Auth-Key': authKey } });
 export const updateProfile = (payload) => api.post('/auth/update-profile', payload);
 export const confirmAccount = (token) => api.get(`/confirm/${token}`);
 export const resendConfirmationEmail = (email) => api.post('/auth/resend-confirmation', { email });

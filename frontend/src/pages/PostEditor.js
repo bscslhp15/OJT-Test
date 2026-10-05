@@ -6,6 +6,8 @@ import { createPost, updatePost } from '../services/api';
 import { createPostSlug, getPostUrl } from '../services/post-url';
 import { getAccountUrl } from '../services/account-url';
 import { loadPublicPosts } from '../services/public-data';
+import { createCategorySlug, getStoredCategories, upsertStoredCategory } from '../services/categories';
+import { mergeTagsWithPosts, upsertStoredTag } from '../services/tags';
 
 const defaultCategories = ['Uncategorized'];
 const textColors = ['#000000', '#4b5563', '#991b1b', '#b45309', '#166534', '#155e75', '#1d4ed8', '#581c87', '#be123c', '#dc2626', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#a855f7', '#ec4899', '#f8fafc'];
@@ -588,7 +590,9 @@ const PostEditor = () => {
       const savedCategories = [...allSavedPosts, ...(existingPost ? [existingPost] : [])]
         .flatMap((post) => String(post.category || '').split(',').map((category) => category.trim()))
         .filter(Boolean);
-      setCategoryList((current) => [...new Set([...current, ...savedCategories])]);
+      const registeredCategories = getStoredCategories().map((category) => category.name);
+      setCategoryList((current) => [...new Set([...current, ...registeredCategories, ...savedCategories])]);
+      mergeTagsWithPosts([...allSavedPosts, ...(existingPost ? [existingPost] : [])]);
 
       if (isEdit && existingPost) {
         setEditingPostId(existingPost.id);
@@ -751,6 +755,7 @@ const PostEditor = () => {
     const category = newCategory.trim();
     if (!category) return;
 
+    upsertStoredCategory({ id: `category-${createCategorySlug(category)}`, name: category, slug: createCategorySlug(category), parent: '', description: '' });
     setCategoryList((current) => current.includes(category) ? current : [...current, category]);
     setForm((current) => {
       const selectedCategories = String(current.category || '').split(',').map((item) => item.trim()).filter(Boolean);
@@ -786,6 +791,7 @@ const PostEditor = () => {
     const nextTag = tagInput.trim();
     if (!nextTag) return;
 
+    upsertStoredTag({ id: `tag-${createPostSlug(nextTag)}`, name: nextTag, slug: createPostSlug(nextTag), description: '' });
     setForm((current) => {
       const tags = String(current.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean);
       if (tags.some((tag) => tag.toLowerCase() === nextTag.toLowerCase())) return current;

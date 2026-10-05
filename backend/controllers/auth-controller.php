@@ -8,6 +8,7 @@ use PHPMailer\PHPMailer\PHPMailer;
 use Yii;
 use yii\rest\Controller;
 use yii\web\BadRequestHttpException;
+use yii\web\ForbiddenHttpException;
 
 class AuthController extends Controller
 {
@@ -25,7 +26,7 @@ class AuthController extends Controller
                 'Origin' => $allowedOrigins,
                 'Access-Control-Request-Method' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
                 'Access-Control-Allow-Credentials' => true,
-                'Access-Control-Allow-Headers' => ['*'],
+                'Access-Control-Request-Headers' => ['*'],
                 'Access-Control-Expose-Headers' => ['*'],
             ],
         ];
@@ -215,6 +216,133 @@ class AuthController extends Controller
                 ],
             ],
         ];
+    }
+
+    public function actionUsers()
+    {
+        $this->requireAdminUser();
+        $adminEmail = strtolower(trim((string) (Yii::$app->params['adminEmail'] ?? '')));
+
+        $postCounts = [];
+        $postCountRows = Post::find()
+            ->select(['author_id', 'post_count' => 'COUNT(*)'])
+            ->groupBy('author_id')
+            ->asArray()
+            ->all();
+        foreach ($postCountRows as $postCountRow) {
+            $postCounts[(string) $postCountRow['author_id']] = (int) $postCountRow['post_count'];
+        }
+
+        $users = User::find()
+            ->select(['id', 'username', 'first_name', 'last_name', 'email', 'profile_photo'])
+            ->orderBy(['username' => SORT_ASC])
+            ->all();
+
+        return [
+            'success' => true,
+            'users' => array_map(function ($user) use ($adminEmail, $postCounts) {
+                $isAdmin = strtolower(trim((string) $user->email)) === $adminEmail;
+                return [
+                    'id' => $user->id,
+                    'username' => $user->username,
+                    'firstName' => $user->first_name,
+                    'lastName' => $user->last_name,
+                    'email' => $user->email,
+                    'profile_photo' => $user->profile_photo,
+                    'isAdmin' => $isAdmin,
+                    'role' => $isAdmin ? 'Administrator' : 'Subscriber',
+                    'postCount' => $postCounts[(string) $user->id] ?? 0,
+                ];
+            }, $users),
+        ];
+    }
+
+    public function actionUsersBulkAction()
+    {
+        $this->requireAdminUser();
+        $body = Yii::$app->request->bodyParams;
+        $action = $body['action'] ?? '';
+        $rawUserIds = $body['userIds'] ?? [];
+        if (!in_array($action, ['delete', 'send-password-reset'], true) || !is_array($rawUserIds) || empty($rawUserIds)) {
+            throw new BadRequestHttpException('Choose a valid action and at least one user.');
+        }
+
+        $userIds = [];
+        foreach ($rawUserIds as $rawUserId) {
+            $userId = filter_var($rawUserId, FILTER_VALIDATE_INT);
+            if ($userId === false || $userId < 1) {
+                throw new BadRequestHttpException('The selected user list is invalid.');
+            }
+            $userIds[] = (int) $userId;
+        }
+        $userIds = array_values(array_unique($userIds));
+        $users = User::find()->where(['id' => $userIds])->all();
+        if (count($users) !== count($userIds)) {
+            throw new BadRequestHttpException('One or more selected users no longer exist.');
+        }
+
+        if ($action === 'delete') {
+            $adminEmail = strtolower(trim((string) (Yii::$app->params['adminEmail'] ?? '')));
+            foreach ($users as $user) {
+                if (strtolower(trim((string) $user->email)) === $adminEmail) {
+                    throw new BadRequestHttpException('The administrator account cannot be deleted.');
+                }
+            }
+
+            $transaction = Yii::$app->db->beginTransaction();
+            try {
+                foreach ($users as $user) {
+                    if ($user->delete() === false) {
+                        throw new \RuntimeException('A selected user could not be deleted.');
+                    }
+                }
+                $transaction->commit();
+            } catch (\Throwable $error) {
+                $transaction->rollBack();
+                throw $error;
+            }
+
+            return ['success' => true, 'action' => $action, 'deletedIds' => $userIds, 'deletedCount' => count($userIds)];
+        }
+
+        $sentCount = 0;
+        $failedCount = 0;
+        foreach ($users as $user) {
+            $user->password_reset_token = bin2hex(random_bytes(32));
+            $user->password_reset_expires_at = date('Y-m-d H:i:s', time() + 300);
+            if (!$user->save(false)) {
+                $failedCount++;
+                continue;
+            }
+
+            if ($this->sendPasswordResetEmail($user)) {
+                $sentCount++;
+                continue;
+            }
+
+            $user->password_reset_token = null;
+            $user->password_reset_expires_at = null;
+            $user->save(false);
+            $failedCount++;
+        }
+
+        return [
+            'success' => true,
+            'action' => $action,
+            'sentCount' => $sentCount,
+            'failedCount' => $failedCount,
+        ];
+    }
+
+    private function requireAdminUser()
+    {
+        $authKey = Yii::$app->request->headers->get('X-Auth-Key', '');
+        $requestingUser = $authKey ? User::findOne(['auth_key' => $authKey]) : null;
+        $adminEmail = strtolower(trim((string) (Yii::$app->params['adminEmail'] ?? '')));
+        if (!$requestingUser || $adminEmail === '' || strtolower(trim((string) $requestingUser->email)) !== $adminEmail) {
+            throw new ForbiddenHttpException('Only administrators can manage users.');
+        }
+        return $requestingUser;
     }
 
     public function actionUpdateProfile()

@@ -20,7 +20,7 @@ const adminItems = [
     icon: DocumentTextIcon,
     children: [
       { label: 'All Posts', to: '/testsite/admin/posts' },
-      { label: 'Add Post', to: '/testsite/admin/posts/add' },
+      { label: 'Add Post', to: '/create-post' },
       { label: 'Categories', to: '/testsite/admin/posts/categories' },
       { label: 'Tags', to: '/testsite/admin/posts/tags' }
     ]
@@ -31,7 +31,7 @@ const adminItems = [
     children: [
       { label: 'All Users', to: '/testsite/admin/users' },
       { label: 'Add User', to: '/testsite/admin/users/add' },
-      { label: 'Profile', to: '/testsite/admin/users/profile' }
+      { label: 'Profile', to: '/leyharvie' }
     ]
   }
 ];

@@ -59,6 +59,8 @@ $config = [
                     'controller' => ['auth', 'post', 'comment', 'contact'],
                     'pluralize' => false,
                     'extraPatterns' => [
+                        'GET users' => 'users',
+                        'POST users/bulk-action' => 'users-bulk-action',
                         'POST register' => 'register',
                         'POST login' => 'login',
                         'POST update-profile' => 'update-profile',
@@ -78,7 +80,7 @@ $config = [
             'Origin' => $allowedOrigins,
             'Access-Control-Request-Method' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
             'Access-Control-Allow-Credentials' => true,
-            'Access-Control-Allow-Headers' => ['*'],
+            'Access-Control-Request-Headers' => ['*'],
             'Access-Control-Expose-Headers' => ['*'],
         ],
     ],
