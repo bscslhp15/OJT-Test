@@ -11,4 +11,5 @@ return [
     'smtpUsername' => getenv('TESTSITE_SMTP_USERNAME') ?: '',
     'smtpPassword' => getenv('TESTSITE_SMTP_PASSWORD') ?: '',
     'smtpEncryption' => getenv('TESTSITE_SMTP_ENCRYPTION') ?: 'tls',
+    'brevoApiKey' => getenv('TESTSITE_BREVO_API_KEY') ?: '',
 ];

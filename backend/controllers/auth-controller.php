@@ -617,6 +617,11 @@ class AuthController extends Controller
 
     private function deliverEmail($recipient, $recipientName, $fromEmail, $subject, $body, $logCategory)
     {
+        $brevoApiKey = trim((string) Yii::$app->params['brevoApiKey']);
+        if ($brevoApiKey !== '') {
+            return $this->deliverEmailWithBrevo($recipient, $recipientName, $fromEmail, $subject, $body, $logCategory, $brevoApiKey);
+        }
+
         $configuredEncryption = strtolower((string) Yii::$app->params['smtpEncryption']) === 'ssl' ? 'ssl' : 'tls';
         $attempts = [[
             'port' => (int) Yii::$app->params['smtpPort'],
@@ -659,6 +664,52 @@ class AuthController extends Controller
         }
 
         return false;
+    }
+
+    private function deliverEmailWithBrevo($recipient, $recipientName, $fromEmail, $subject, $body, $logCategory, $apiKey)
+    {
+        $payload = json_encode([
+            'sender' => [
+                'name' => Yii::$app->params['mailFromName'] ?? 'TestSite',
+                'email' => $fromEmail,
+            ],
+            'to' => [[
+                'email' => $recipient,
+                'name' => $recipientName,
+            ]],
+            'subject' => $subject,
+            'textContent' => $body,
+        ]);
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => "api-key: {$apiKey}\r\nContent-Type: application/json\r\nAccept: application/json\r\n",
+                'content' => $payload,
+                'timeout' => 15,
+                'ignore_errors' => true,
+            ],
+        ]);
+        $response = @file_get_contents('https://api.brevo.com/v3/smtp/email', false, $context);
+        if ($response === false) {
+            $error = error_get_last();
+            Yii::warning('Brevo API request failed: ' . ($error['message'] ?? 'Connection error.'), $logCategory);
+            return false;
+        }
+
+        $statusCode = 0;
+        if (!empty($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $matches)) {
+            $statusCode = (int) $matches[1];
+        }
+        if ($statusCode < 200 || $statusCode >= 300) {
+            $errorResponse = json_decode($response, true);
+            Yii::warning(
+                "Brevo API returned HTTP {$statusCode}: " . ($errorResponse['message'] ?? 'Email request rejected.'),
+                $logCategory
+            );
+            return false;
+        }
+
+        return true;
     }
 
     private function sendPasswordResetEmail(User $user, $subject = null, $body = null)

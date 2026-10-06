@@ -19,6 +19,10 @@ $env:TESTSITE_FRONTEND_URL = 'http://localhost:3000'
 
 For Gmail, use a Google App Password, not the normal account password. The same values must be available to the Apache PHP process. Do not commit SMTP credentials to the repository.
 
+## Email delivery on Railway
+
+Railway may block outbound SMTP connections. For Railway, set `TESTSITE_BREVO_API_KEY` to a Brevo transactional API key and set `TESTSITE_MAIL_FROM` to a sender address verified in Brevo. The app sends through Brevo's HTTPS API when the key is present and uses SMTP only when it is absent. Keep API keys in Railway Variables and never commit them.
+
 ## Structure
 
 - `controllers/` - API controllers

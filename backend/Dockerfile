@@ -21,7 +21,7 @@ COPY composer.json composer.lock ./
 RUN COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
 
 COPY . .
-RUN mkdir -p runtime web/assets \
+RUN mkdir -p runtime/cache web/assets \
     && chown -R www-data:www-data runtime web/assets \
     && chmod -R ug+rwX runtime web/assets
 
