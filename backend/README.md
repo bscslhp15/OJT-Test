@@ -14,6 +14,7 @@ $env:TESTSITE_SMTP_PASSWORD = 'your-gmail-app-password'
 $env:TESTSITE_SMTP_ENCRYPTION = 'tls'
 $env:TESTSITE_MAIL_FROM = 'your-email@gmail.com'
 $env:TESTSITE_MAIL_FROM_NAME = 'TestSite'
+$env:TESTSITE_FRONTEND_URL = 'http://localhost:3000'
 ```
 
 For Gmail, use a Google App Password, not the normal account password. The same values must be available to the Apache PHP process. Do not commit SMTP credentials to the repository.

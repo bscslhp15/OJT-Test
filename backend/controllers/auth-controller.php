@@ -576,28 +576,14 @@ class AuthController extends Controller
             . $confirmationUrl . "\n\n"
             . "This confirmation link expires in 5 minutes.\n\n"
             . "If you did not create this account, you can ignore this email.";
-        try {
-            $mailer = new PHPMailer(true);
-            $mailer->isSMTP();
-            $mailer->Host = Yii::$app->params['smtpHost'];
-            $mailer->Port = Yii::$app->params['smtpPort'];
-            $mailer->SMTPAuth = true;
-            $mailer->Username = Yii::$app->params['smtpUsername'];
-            $mailer->Password = Yii::$app->params['smtpPassword'];
-            $mailer->SMTPSecure = Yii::$app->params['smtpEncryption'] === 'ssl'
-                ? PHPMailer::ENCRYPTION_SMTPS
-                : PHPMailer::ENCRYPTION_STARTTLS;
-            $mailer->CharSet = 'UTF-8';
-            $mailer->setFrom($fromEmail, Yii::$app->params['mailFromName'] ?? 'TestSite');
-            $mailer->addAddress($user->email, trim($user->first_name . ' ' . $user->last_name));
-            $mailer->Subject = $subject;
-            $mailer->Body = $body;
-            $mailer->send();
-            return true;
-        } catch (Exception $exception) {
-            Yii::warning($exception->getMessage(), 'confirmation-mail');
-            return false;
-        }
+        return $this->deliverEmail(
+            $user->email,
+            trim($user->first_name . ' ' . $user->last_name),
+            $fromEmail,
+            $subject,
+            $body,
+            'confirmation-mail'
+        );
     }
 
     private function sendNewUserNotification(User $user, $password)
@@ -619,28 +605,60 @@ class AuthController extends Controller
             . $frontendUrl . "/login\n\n"
             . "For your security, change your password after signing in.";
 
-        try {
-            $mailer = new PHPMailer(true);
-            $mailer->isSMTP();
-            $mailer->Host = Yii::$app->params['smtpHost'];
-            $mailer->Port = Yii::$app->params['smtpPort'];
-            $mailer->SMTPAuth = true;
-            $mailer->Username = Yii::$app->params['smtpUsername'];
-            $mailer->Password = Yii::$app->params['smtpPassword'];
-            $mailer->SMTPSecure = Yii::$app->params['smtpEncryption'] === 'ssl'
-                ? PHPMailer::ENCRYPTION_SMTPS
-                : PHPMailer::ENCRYPTION_STARTTLS;
-            $mailer->CharSet = 'UTF-8';
-            $mailer->setFrom($fromEmail, Yii::$app->params['mailFromName'] ?? 'TestSite');
-            $mailer->addAddress($user->email, $fullName);
-            $mailer->Subject = 'Your TestSite account details';
-            $mailer->Body = $body;
-            $mailer->send();
-            return true;
-        } catch (Exception $exception) {
-            Yii::warning($exception->getMessage(), 'account-notification-mail');
-            return false;
+        return $this->deliverEmail(
+            $user->email,
+            $fullName,
+            $fromEmail,
+            'Your TestSite account details',
+            $body,
+            'account-notification-mail'
+        );
+    }
+
+    private function deliverEmail($recipient, $recipientName, $fromEmail, $subject, $body, $logCategory)
+    {
+        $configuredEncryption = strtolower((string) Yii::$app->params['smtpEncryption']) === 'ssl' ? 'ssl' : 'tls';
+        $attempts = [[
+            'port' => (int) Yii::$app->params['smtpPort'],
+            'encryption' => $configuredEncryption,
+        ]];
+
+        foreach ([['port' => 587, 'encryption' => 'tls'], ['port' => 465, 'encryption' => 'ssl']] as $fallback) {
+            $alreadyIncluded = array_filter($attempts, static function ($attempt) use ($fallback) {
+                return $attempt['port'] === $fallback['port'] && $attempt['encryption'] === $fallback['encryption'];
+            });
+            if (!$alreadyIncluded) $attempts[] = $fallback;
         }
+
+        foreach ($attempts as $attempt) {
+            try {
+                $mailer = new PHPMailer(true);
+                $mailer->isSMTP();
+                $mailer->Host = Yii::$app->params['smtpHost'];
+                $mailer->Port = $attempt['port'];
+                $mailer->Timeout = 10;
+                $mailer->SMTPAuth = true;
+                $mailer->Username = Yii::$app->params['smtpUsername'];
+                $mailer->Password = Yii::$app->params['smtpPassword'];
+                $mailer->SMTPSecure = $attempt['encryption'] === 'ssl'
+                    ? PHPMailer::ENCRYPTION_SMTPS
+                    : PHPMailer::ENCRYPTION_STARTTLS;
+                $mailer->CharSet = 'UTF-8';
+                $mailer->setFrom($fromEmail, Yii::$app->params['mailFromName'] ?? 'TestSite');
+                $mailer->addAddress($recipient, $recipientName);
+                $mailer->Subject = $subject;
+                $mailer->Body = $body;
+                $mailer->send();
+                return true;
+            } catch (Exception $exception) {
+                Yii::warning(
+                    "SMTP port {$attempt['port']} ({$attempt['encryption']}) failed: " . $exception->getMessage(),
+                    $logCategory
+                );
+            }
+        }
+
+        return false;
     }
 
     private function sendPasswordResetEmail(User $user, $subject = null, $body = null)
@@ -654,27 +672,13 @@ class AuthController extends Controller
             . $resetUrl . "\n\n"
             . "This link expires in 5 minutes. If you did not request this, you can ignore this email.");
 
-        try {
-            $mailer = new PHPMailer(true);
-            $mailer->isSMTP();
-            $mailer->Host = Yii::$app->params['smtpHost'];
-            $mailer->Port = Yii::$app->params['smtpPort'];
-            $mailer->SMTPAuth = true;
-            $mailer->Username = Yii::$app->params['smtpUsername'];
-            $mailer->Password = Yii::$app->params['smtpPassword'];
-            $mailer->SMTPSecure = Yii::$app->params['smtpEncryption'] === 'ssl'
-                ? PHPMailer::ENCRYPTION_SMTPS
-                : PHPMailer::ENCRYPTION_STARTTLS;
-            $mailer->CharSet = 'UTF-8';
-            $mailer->setFrom($fromEmail, Yii::$app->params['mailFromName'] ?? 'TestSite');
-            $mailer->addAddress($user->email, trim($user->first_name . ' ' . $user->last_name));
-            $mailer->Subject = $subject;
-            $mailer->Body = $body;
-            $mailer->send();
-            return true;
-        } catch (Exception $exception) {
-            Yii::warning($exception->getMessage(), 'password-reset-mail');
-            return false;
-        }
+        return $this->deliverEmail(
+            $user->email,
+            trim($user->first_name . ' ' . $user->last_name),
+            $fromEmail,
+            $subject,
+            $body,
+            'password-reset-mail'
+        );
     }
 }
