@@ -42,6 +42,7 @@ class AuthController extends Controller
         $user->username = $body['username'] ?? null;
         $user->email = $body['email'] ?? null;
         $user->password_hash = password_hash($body['password'] ?? '', PASSWORD_DEFAULT);
+        $user->role = 'Author';
         $user->confirmed = false;
         $user->auth_key = bin2hex(random_bytes(16));
         $user->confirmation_expires_at = date('Y-m-d H:i:s', time() + 300);
@@ -68,6 +69,72 @@ class AuthController extends Controller
             ];
         }
         return ['success' => false, 'errors' => $user->errors];
+    }
+
+    public function actionCreateAdminUser()
+    {
+        $this->requireAdminUser();
+        $body = Yii::$app->request->bodyParams;
+        $username = trim((string) ($body['username'] ?? ''));
+        $email = trim((string) ($body['email'] ?? ''));
+        $password = (string) ($body['password'] ?? '');
+        $role = strtolower(trim((string) ($body['role'] ?? 'author')));
+        $website = trim((string) ($body['website'] ?? ''));
+
+        if ($username === '' || $email === '' || $password === '') {
+            throw new BadRequestHttpException('Username, email, and password are required.');
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new BadRequestHttpException('Enter a valid email address.');
+        }
+        if (strlen($password) < 8) {
+            throw new BadRequestHttpException('Password must be at least 8 characters.');
+        }
+        if (!in_array($role, ['author', 'administrator'], true)) {
+            throw new BadRequestHttpException('Choose Author or Administrator as the role.');
+        }
+        if ($website !== '' && !filter_var($website, FILTER_VALIDATE_URL)) {
+            throw new BadRequestHttpException('Enter a valid website URL.');
+        }
+        if (User::findOne(['username' => $username])) {
+            throw new BadRequestHttpException('This username is already taken.');
+        }
+        if (User::findByEmail($email)) {
+            throw new BadRequestHttpException('This email is already registered.');
+        }
+
+        $user = new User();
+        $user->username = $username;
+        $user->email = $email;
+        $user->first_name = trim((string) ($body['firstName'] ?? ''));
+        $user->last_name = trim((string) ($body['lastName'] ?? ''));
+        $user->website = $website !== '' ? $website : null;
+        $user->password_hash = password_hash($password, PASSWORD_DEFAULT);
+        $user->role = $role === 'administrator' ? 'Administrator' : 'Author';
+        $user->confirmed = true;
+        $user->auth_key = bin2hex(random_bytes(16));
+        $user->created_at = date('Y-m-d H:i:s');
+
+        if (!$user->save(false)) {
+            throw new BadRequestHttpException('The user account could not be saved.');
+        }
+
+        $emailSent = null;
+        if (!empty($body['sendNotification'])) {
+            $emailSent = $this->sendNewUserNotification($user, $password);
+        }
+
+        return [
+            'success' => true,
+            'message' => 'User account created.',
+            'emailSent' => $emailSent,
+            'user' => [
+                'id' => $user->id,
+                'username' => $user->username,
+                'email' => $user->email,
+                'role' => $user->role,
+            ],
+        ];
     }
 
     public function actionResendConfirmation()
@@ -200,7 +267,8 @@ class AuthController extends Controller
                 'firstName' => $user->first_name,
                 'lastName' => $user->last_name,
                 'email' => $user->email,
-                'isAdmin' => strtolower(trim((string) $user->email)) === strtolower(trim((string) Yii::$app->params['adminEmail'])),
+                'role' => $user->role,
+                'isAdmin' => $this->isAdministratorUser($user),
                 'confirmed' => $user->confirmed,
                 'username' => $user->username,
                 'authKey' => $user->auth_key,
@@ -221,8 +289,6 @@ class AuthController extends Controller
     public function actionUsers()
     {
         $this->requireAdminUser();
-        $adminEmail = strtolower(trim((string) (Yii::$app->params['adminEmail'] ?? '')));
-
         $postCounts = [];
         $postCountRows = Post::find()
             ->select(['author_id', 'post_count' => 'COUNT(*)'])
@@ -234,14 +300,14 @@ class AuthController extends Controller
         }
 
         $users = User::find()
-            ->select(['id', 'username', 'first_name', 'last_name', 'email', 'profile_photo'])
+            ->select(['id', 'username', 'first_name', 'last_name', 'email', 'profile_photo', 'role'])
             ->orderBy(['username' => SORT_ASC])
             ->all();
 
         return [
             'success' => true,
-            'users' => array_map(function ($user) use ($adminEmail, $postCounts) {
-                $isAdmin = strtolower(trim((string) $user->email)) === $adminEmail;
+            'users' => array_map(function ($user) use ($postCounts) {
+                $isAdmin = $this->isAdministratorUser($user);
                 return [
                     'id' => $user->id,
                     'username' => $user->username,
@@ -250,7 +316,7 @@ class AuthController extends Controller
                     'email' => $user->email,
                     'profile_photo' => $user->profile_photo,
                     'isAdmin' => $isAdmin,
-                    'role' => $isAdmin ? 'Administrator' : 'Subscriber',
+                    'role' => $isAdmin ? 'Administrator' : 'Author',
                     'postCount' => $postCounts[(string) $user->id] ?? 0,
                 ];
             }, $users),
@@ -263,7 +329,7 @@ class AuthController extends Controller
         $body = Yii::$app->request->bodyParams;
         $action = $body['action'] ?? '';
         $rawUserIds = $body['userIds'] ?? [];
-        if (!in_array($action, ['delete', 'send-password-reset'], true) || !is_array($rawUserIds) || empty($rawUserIds)) {
+        if (!in_array($action, ['delete', 'send-password-reset', 'change-role'], true) || !is_array($rawUserIds) || empty($rawUserIds)) {
             throw new BadRequestHttpException('Choose a valid action and at least one user.');
         }
 
@@ -279,6 +345,36 @@ class AuthController extends Controller
         $users = User::find()->where(['id' => $userIds])->all();
         if (count($users) !== count($userIds)) {
             throw new BadRequestHttpException('One or more selected users no longer exist.');
+        }
+
+        if ($action === 'change-role') {
+            $role = strtolower(trim((string) ($body['role'] ?? '')));
+            if (!in_array($role, ['author', 'administrator'], true)) {
+                throw new BadRequestHttpException('Choose Author or Administrator as the role.');
+            }
+
+            $adminEmail = strtolower(trim((string) (Yii::$app->params['adminEmail'] ?? '')));
+            foreach ($users as $user) {
+                if ($adminEmail !== '' && strtolower(trim((string) $user->email)) === $adminEmail && $role !== 'administrator') {
+                    throw new BadRequestHttpException('The primary administrator must remain an administrator.');
+                }
+            }
+
+            $transaction = Yii::$app->db->beginTransaction();
+            try {
+                foreach ($users as $user) {
+                    $user->role = $role === 'administrator' ? 'Administrator' : 'Author';
+                    if (!$user->save(false)) {
+                        throw new \RuntimeException('A selected user role could not be updated.');
+                    }
+                }
+                $transaction->commit();
+            } catch (\Throwable $error) {
+                $transaction->rollBack();
+                throw $error;
+            }
+
+            return ['success' => true, 'action' => $action, 'role' => ucfirst($role), 'updatedIds' => $userIds, 'updatedCount' => count($userIds)];
         }
 
         if ($action === 'delete') {
@@ -338,11 +434,17 @@ class AuthController extends Controller
     {
         $authKey = Yii::$app->request->headers->get('X-Auth-Key', '');
         $requestingUser = $authKey ? User::findOne(['auth_key' => $authKey]) : null;
-        $adminEmail = strtolower(trim((string) (Yii::$app->params['adminEmail'] ?? '')));
-        if (!$requestingUser || $adminEmail === '' || strtolower(trim((string) $requestingUser->email)) !== $adminEmail) {
+        if (!$requestingUser || !$this->isAdministratorUser($requestingUser)) {
             throw new ForbiddenHttpException('Only administrators can manage users.');
         }
         return $requestingUser;
+    }
+
+    private function isAdministratorUser($user)
+    {
+        $adminEmail = strtolower(trim((string) (Yii::$app->params['adminEmail'] ?? '')));
+        return strtolower(trim((string) $user->role)) === 'administrator'
+            || ($adminEmail !== '' && strtolower(trim((string) $user->email)) === $adminEmail);
     }
 
     public function actionUpdateProfile()
@@ -494,6 +596,49 @@ class AuthController extends Controller
             return true;
         } catch (Exception $exception) {
             Yii::warning($exception->getMessage(), 'confirmation-mail');
+            return false;
+        }
+    }
+
+    private function sendNewUserNotification(User $user, $password)
+    {
+        $frontendUrl = rtrim(Yii::$app->params['frontendUrl'] ?? 'http://localhost:3000', '/');
+        $fromEmail = Yii::$app->params['mailFrom'] ?? 'no-reply@example.com';
+        $fullName = trim($user->first_name . ' ' . $user->last_name);
+        $body = "Hello " . ($fullName !== '' ? $fullName : $user->username) . ",\n\n"
+            . "An account has been created for you on TestSite.\n\n"
+            . "Account details:\n"
+            . "Username: {$user->username}\n"
+            . "Email: {$user->email}\n"
+            . "First Name: " . ($user->first_name ?: 'Not provided') . "\n"
+            . "Last Name: " . ($user->last_name ?: 'Not provided') . "\n"
+            . "Website: " . ($user->website ?: 'Not provided') . "\n"
+            . "Password: {$password}\n"
+            . "Role: {$user->role}\n\n"
+            . "Sign in to TestSite here:\n"
+            . $frontendUrl . "/login\n\n"
+            . "For your security, change your password after signing in.";
+
+        try {
+            $mailer = new PHPMailer(true);
+            $mailer->isSMTP();
+            $mailer->Host = Yii::$app->params['smtpHost'];
+            $mailer->Port = Yii::$app->params['smtpPort'];
+            $mailer->SMTPAuth = true;
+            $mailer->Username = Yii::$app->params['smtpUsername'];
+            $mailer->Password = Yii::$app->params['smtpPassword'];
+            $mailer->SMTPSecure = Yii::$app->params['smtpEncryption'] === 'ssl'
+                ? PHPMailer::ENCRYPTION_SMTPS
+                : PHPMailer::ENCRYPTION_STARTTLS;
+            $mailer->CharSet = 'UTF-8';
+            $mailer->setFrom($fromEmail, Yii::$app->params['mailFromName'] ?? 'TestSite');
+            $mailer->addAddress($user->email, $fullName);
+            $mailer->Subject = 'Your TestSite account details';
+            $mailer->Body = $body;
+            $mailer->send();
+            return true;
+        } catch (Exception $exception) {
+            Yii::warning($exception->getMessage(), 'account-notification-mail');
             return false;
         }
     }

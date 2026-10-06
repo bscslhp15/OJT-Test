@@ -46,7 +46,6 @@ const Footer = () => {
           <div className="flex items-center gap-2">
             <a href="#" aria-label="Twitter" className="flex h-8 w-8 items-center justify-center rounded bg-slate-800 text-slate-300 transition hover:bg-[#22C55E] hover:text-white"><i className="fab fa-twitter" /></a>
             <a href="#" aria-label="Facebook" className="flex h-8 w-8 items-center justify-center rounded bg-slate-800 text-slate-300 transition hover:bg-[#22C55E] hover:text-white"><i className="fab fa-facebook-f" /></a>
-            <a href="#" aria-label="Skype" className="flex h-8 w-8 items-center justify-center rounded bg-slate-800 text-slate-300 transition hover:bg-[#22C55E] hover:text-white"><i className="fab fa-skype" /></a>
             <a href="#" aria-label="Instagram" className="flex h-8 w-8 items-center justify-center rounded bg-slate-800 text-slate-300 transition hover:bg-[#22C55E] hover:text-white"><i className="fab fa-instagram" /></a>
             <a href="#" aria-label="LinkedIn" className="flex h-8 w-8 items-center justify-center rounded bg-slate-800 text-slate-300 transition hover:bg-[#22C55E] hover:text-white"><i className="fab fa-linkedin-in" /></a>
           </div>

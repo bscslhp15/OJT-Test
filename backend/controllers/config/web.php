@@ -60,6 +60,7 @@ $config = [
                     'pluralize' => false,
                     'extraPatterns' => [
                         'GET users' => 'users',
+                        'POST users/create' => 'create-admin-user',
                         'POST users/bulk-action' => 'users-bulk-action',
                         'POST register' => 'register',
                         'POST login' => 'login',

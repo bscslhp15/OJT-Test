@@ -4,7 +4,7 @@ import { ChevronUpDownIcon, UserIcon } from '@heroicons/react/24/outline';
 import AuthContext from '../context/auth-context';
 import { applyAdminUserBulkAction, fetchAdminUsers } from '../services/api';
 
-const userRole = (user) => user?.role || (user?.isAdmin ? 'Administrator' : 'Subscriber');
+const userRole = (user) => user?.role || (user?.isAdmin ? 'Administrator' : 'Author');
 
 const UserTable = ({ users, selectedIds, onToggleUser, onToggleAll }) => {
   const checkboxClass = 'h-4 w-4 rounded border-[#B8C0B8] text-[#16803C] focus:ring-[#22C55E]';
@@ -72,6 +72,7 @@ const AdminUsers = () => {
   const [users, setUsers] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkAction, setBulkAction] = useState('');
+  const [selectedRole, setSelectedRole] = useState('');
   const [bulkActionBusy, setBulkActionBusy] = useState(false);
   const [actionNotice, setActionNotice] = useState('');
   const [actionError, setActionError] = useState('');
@@ -155,6 +156,43 @@ const AdminUsers = () => {
     }
   };
 
+  const applyRoleChange = async () => {
+    if (!selectedRole) {
+      setActionError('Choose a role first.');
+      setActionNotice('');
+      return;
+    }
+    if (selectedIds.length === 0) {
+      setActionError('Select at least one user first.');
+      setActionNotice('');
+      return;
+    }
+
+    const authKey = user?.authKey || user?.auth_key;
+    setBulkActionBusy(true);
+    setActionError('');
+    setActionNotice('');
+    try {
+      const { data } = await applyAdminUserBulkAction(authKey, {
+        action: 'change-role',
+        userIds: selectedIds,
+        role: selectedRole
+      });
+      const updatedIds = new Set((data.updatedIds || selectedIds).map(String));
+      const roleLabel = selectedRole === 'administrator' ? 'Administrator' : 'Author';
+      setUsers((current) => current.map((listedUser) => updatedIds.has(String(listedUser.id))
+        ? { ...listedUser, role: roleLabel, isAdmin: selectedRole === 'administrator' }
+        : listedUser));
+      setSelectedIds([]);
+      setSelectedRole('');
+      setActionNotice(`${data.updatedCount} user${data.updatedCount === 1 ? '' : 's'} updated to ${roleLabel}.`);
+    } catch (error) {
+      setActionError(error.response?.data?.message || 'The role change could not be completed.');
+    } finally {
+      setBulkActionBusy(false);
+    }
+  };
+
   const UserControls = ({ position }) => (
     <div className="flex flex-wrap items-center gap-2">
       <label className="sr-only" htmlFor={`${position}-user-bulk-action`}>Bulk actions</label>
@@ -165,16 +203,12 @@ const AdminUsers = () => {
       </select>
       <button type="button" onClick={applyBulkAction} disabled={bulkActionBusy} className={`${buttonClass} disabled:cursor-wait disabled:opacity-60`}>{bulkActionBusy ? 'Working...' : 'Apply'}</button>
       <label className="sr-only" htmlFor={`${position}-user-role-action`}>Change role to</label>
-      <select id={`${position}-user-role-action`} defaultValue="" className={`${controlClass} min-w-48`}>
+      <select id={`${position}-user-role-action`} value={selectedRole} onChange={(event) => setSelectedRole(event.target.value)} className={`${controlClass} min-w-48`}>
         <option value="">Change role to...</option>
-        <option value="subscriber">Subscriber</option>
-        <option value="contributor">Contributor</option>
         <option value="author">Author</option>
-        <option value="editor">Editor</option>
         <option value="administrator">Administrator</option>
-        <option value="none">— No role for this site —</option>
       </select>
-      <button type="button" className={buttonClass}>Change</button>
+      <button type="button" onClick={applyRoleChange} disabled={bulkActionBusy} className={`${buttonClass} disabled:cursor-wait disabled:opacity-60`}>Change</button>
     </div>
   );
 

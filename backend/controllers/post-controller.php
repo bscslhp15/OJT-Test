@@ -14,7 +14,8 @@ class PostController extends ActiveController
     private function isAdminUser($user)
     {
         $adminEmail = strtolower(trim((string) Yii::$app->params['adminEmail']));
-        return $adminEmail !== '' && strtolower(trim((string) $user->email)) === $adminEmail;
+        return strtolower(trim((string) $user->role)) === 'administrator'
+            || ($adminEmail !== '' && strtolower(trim((string) $user->email)) === $adminEmail);
     }
 
     public function actions()

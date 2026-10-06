@@ -225,7 +225,6 @@ const Navbar = () => {
                           )}
                           <div className="flex-1">
                             <div className="text-sm font-semibold text-slate-800">{user?.name || user?.username || (user?.email ? user.email.split('@')[0] : 'User')}</div>
-                            <div className="mt-1 text-xs text-slate-500">{user?.confirmed ? 'Confirmed account' : 'Unconfirmed account'}</div>
                           </div>
                         </div>
                         <div className="my-3 h-px bg-slate-100" />

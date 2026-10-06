@@ -8,6 +8,7 @@ import AdminCategories from './components/AdminCategories';
 import AdminTags from './components/AdminTags';
 import AdminPosts from './components/AdminPosts';
 import AdminUsers from './components/AdminUsers';
+import AdminAddUser from './components/AdminAddUser';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -55,7 +56,7 @@ function App() {
                 <Route path="tags" element={<AdminTags />} />
               </Route>
               <Route path="users" element={<AdminUsers />} />
-              <Route path="users/add" element={<AdminPage title="Add User" />} />
+              <Route path="users/add" element={<AdminAddUser />} />
               <Route path="users/profile" element={<AdminPage title="Profile" />} />
             </Route>
           </Route>
