@@ -23,6 +23,7 @@ import Testimonials from './pages/Testimonials';
 import PostEditor from './pages/PostEditor';
 import Account from './pages/Account';
 import Team from './pages/Team';
+import Portfolio from './pages/Portfolio';
 import ForgotPassword from './pages/forgot-password';
 import ResetPassword from './pages/reset-password';
 
@@ -77,6 +78,7 @@ function App() {
             <Route path="blog/:id" element={<SingleBlog />} />
             <Route path="contact" element={<Contact />} />
             <Route path="pricing" element={<Pricing />} />
+            <Route path="portfolio" element={<Portfolio />} />
             <Route path="services" element={<Services />} />
             <Route path="team" element={<Team />} />
             <Route path="testimonials" element={<Testimonials />} />

@@ -195,11 +195,11 @@ const PublicProfile = ({ profile }) => {
   return (
     <>
       <PageHeader title={fullName} subtitle="Profile" />
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <div className="grid items-start gap-6 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_759px] xl:gap-8">
-          <div className="w-full rounded-3xl bg-white p-5 text-center shadow-xl sm:p-8 xl:p-10">
-            {profilePhoto ? <img src={profilePhoto} alt={profile.username || 'Profile'} className="mx-auto h-32 w-32 rounded-full border-4 border-emerald-500 object-cover" /> : <div className="mx-auto flex h-32 w-32 items-center justify-center rounded-full bg-emerald-600 text-4xl font-semibold text-white">{(profile.username || 'A')[0].toUpperCase()}</div>}
-            <h2 className="mt-5 text-2xl font-semibold text-slate-900">{fullName}</h2>
+      <section className="mx-auto max-w-7xl px-2 py-8 min-[360px]:px-4 min-[360px]:py-12 sm:px-6 lg:px-8 xl:py-16">
+        <div className="grid min-w-0 items-start gap-4 min-[360px]:gap-6 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,759px)] xl:gap-8">
+          <div className="w-full min-w-0 rounded-2xl bg-white p-3 text-center shadow-xl max-[159px]:p-2 min-[360px]:rounded-3xl min-[360px]:p-4 sm:p-8 xl:p-10">
+            {profilePhoto ? <img src={profilePhoto} alt={profile.username || 'Profile'} className="mx-auto h-16 w-16 rounded-full border-4 border-emerald-500 object-cover max-[159px]:h-8 max-[159px]:w-8 min-[360px]:h-24 min-[360px]:w-24 sm:h-32 sm:w-32" /> : <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 text-2xl font-semibold text-white max-[159px]:h-8 max-[159px]:w-8 max-[159px]:text-base min-[360px]:h-24 min-[360px]:w-24 min-[360px]:text-3xl sm:h-32 sm:w-32 sm:text-4xl">{(profile.username || 'A')[0].toUpperCase()}</div>}
+            <h2 className="mt-4 break-words text-lg font-semibold text-slate-900 [overflow-wrap:anywhere] max-[159px]:text-sm min-[360px]:mt-5 min-[360px]:text-xl sm:text-2xl">{fullName}</h2>
             <div className="relative mt-5 grid gap-2 border-t border-slate-100 pt-5 text-center sm:grid-cols-2 before:absolute before:bottom-0 before:left-1/2 before:top-5 before:w-px before:-translate-x-1/2 before:bg-slate-200">
               <ProfileValue value={profile.email} />
               <ProfileValue value={profile.username} />
@@ -225,23 +225,23 @@ const PublicProfile = ({ profile }) => {
                 <div className="mt-6 border-t border-slate-100 pt-5 text-left">
                   <h3 className="text-sm font-semibold text-slate-900">Bio</h3>
                   <div className="mt-4 border-t border-slate-300" />
-                  <p className="mt-5 whitespace-pre-wrap text-sm leading-6 text-slate-600">{profile.bio}</p>
+                  <p className="mt-5 whitespace-pre-wrap text-sm leading-6 text-slate-600 [overflow-wrap:anywhere]">{profile.bio}</p>
                 </div>
               )}
             </div>
           </div>
-          <div className="w-full xl:w-[759px] xl:justify-self-end space-y-8">
+          <div className="w-full min-w-0 space-y-8">
             {profilePosts.map((post) => (
               <article key={post.id} className="group relative overflow-hidden rounded-3xl bg-white shadow-lg">
-                {(post.featuredImage || post.image) && <Link to={getPostUrl(post)} className="block"><img src={post.featuredImage || post.image} alt={post.title} className="h-80 w-full object-cover transition duration-200 hover:brightness-95" /></Link>}
-                <div className="p-8">
-                  <h2 className="text-2xl font-semibold text-slate-900"><Link to={getPostUrl(post)} className="transition hover:text-emerald-600">{post.title}</Link></h2>
-                  <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-600">
-                    <span><i className="fas fa-user mr-1" aria-hidden="true" />{post.author || fullName}</span>
-                    <span><i className="far fa-calendar mr-1" aria-hidden="true" />{post.date}</span>
-                    <Link to={`${getPostUrl(post)}#comments`} className="hover:text-emerald-600"><i className="far fa-comments mr-1" aria-hidden="true" />{commentCounts[String(post.id)] ?? getCommentCount(post.id)} Comments</Link>
+                {(post.featuredImage || post.image) && <Link to={getPostUrl(post)} className="block"><img src={post.featuredImage || post.image} alt={post.title} className="aspect-[4/3] w-full object-cover transition duration-200 hover:brightness-95 sm:aspect-[16/9]" /></Link>}
+                <div className="min-w-0 p-3 min-[360px]:p-4 sm:p-8">
+                  <h2 className="break-words text-xl font-semibold text-slate-900 sm:text-2xl"><Link to={getPostUrl(post)} className="transition hover:text-emerald-600">{post.title}</Link></h2>
+                  <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-600 max-[159px]:flex-col max-[159px]:items-start max-[159px]:gap-1">
+                    <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]"><i className="fas fa-user mr-1" aria-hidden="true" />{post.author || fullName}</span>
+                    <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]"><i className="far fa-calendar mr-1" aria-hidden="true" />{post.date}</span>
+                    <Link to={`${getPostUrl(post)}#comments`} className="min-w-0 max-w-full break-words [overflow-wrap:anywhere] hover:text-emerald-600"><i className="fas fa-comments mr-1" aria-hidden="true" />{commentCounts[String(post.id)] ?? getCommentCount(post.id)} Comments</Link>
                   </div>
-                  <p className="mt-4 text-slate-600">{getPostExcerpt(post)}</p>
+                  <p className="mt-4 min-w-0 break-words text-slate-600 [overflow-wrap:anywhere]">{getPostExcerpt(post)}</p>
                   <div className="mt-3 flex items-center gap-1 text-xs opacity-100 select-none"><Link to={getPostUrl(post)} className="cursor-pointer text-[#22C55E] hover:underline">View</Link></div>
                 </div>
               </article>
@@ -641,10 +641,10 @@ const Account = () => {
   return (
     <>
       <PageHeader title={user?.username || 'My Account'} subtitle="Manage your profile and your published blog posts." />
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <div className="grid items-start gap-6 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_759px] xl:gap-8">
+      <section className="mx-auto max-w-7xl px-2 py-8 min-[360px]:px-4 min-[360px]:py-12 sm:px-6 lg:px-8 xl:py-16">
+        <div className="grid min-w-0 items-start gap-4 min-[360px]:gap-6 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,759px)] xl:gap-8">
           {/* Left Column - Profile Form */}
-          <div className="w-full rounded-3xl bg-white p-5 shadow-xl self-start sm:p-8 xl:p-10">
+          <div className="w-full min-w-0 self-start rounded-2xl bg-white p-3 shadow-xl max-[159px]:p-2 min-[360px]:rounded-3xl min-[360px]:p-4 sm:p-8 xl:p-10">
             {!isEditing ? (
               <div className="flex justify-end">
                 <button
@@ -689,7 +689,7 @@ const Account = () => {
                     disabled={!isEditing}
                     aria-label="Upload profile photo"
                     title={isEditing ? 'Upload profile photo' : 'Enable editing to change profile photo'}
-                    className="group flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-4 border-emerald-500 bg-slate-100 text-left shadow-lg transition-transform duration-200 hover:scale-105 disabled:cursor-default disabled:hover:scale-100"
+                    className="group flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-4 border-emerald-500 bg-slate-100 text-left shadow-lg transition-transform duration-200 hover:scale-105 disabled:cursor-default disabled:hover:scale-100 max-[159px]:h-8 max-[159px]:w-8 min-[360px]:h-24 min-[360px]:w-24 sm:h-32 sm:w-32"
                   >
                     {photoPreview ? (
                       <img src={photoPreview} alt="Profile" className="h-full w-full object-cover transition duration-200 group-hover:brightness-75" />
@@ -908,7 +908,7 @@ const Account = () => {
           </div>
 
           {/* Right Column - Blog Posts */}
-          <div className="w-full xl:w-[759px] xl:justify-self-end">
+          <div className="w-full min-w-0">
             <div className="mb-8 flex items-center gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-full border border-slate-200 bg-slate-100">
                 {photoPreview ? (
@@ -933,30 +933,30 @@ const Account = () => {
                   <article key={post.id} className="group relative overflow-hidden rounded-3xl bg-white shadow-lg">
                     {(post.featuredImage || post.image) && (
                       post.status === 'draft' ? (
-                        <img src={post.featuredImage || post.image} alt={post.title} className="h-80 w-full object-cover" />
+                        <img src={post.featuredImage || post.image} alt={post.title} className="aspect-[4/3] w-full object-cover sm:aspect-[16/9]" />
                       ) : (
                         <Link to={getPostUrl(post)} className="block">
-                          <img src={post.featuredImage || post.image} alt={post.title} className="h-80 w-full object-cover transition duration-200 hover:brightness-95" />
+                          <img src={post.featuredImage || post.image} alt={post.title} className="aspect-[4/3] w-full object-cover transition duration-200 hover:brightness-95 sm:aspect-[16/9]" />
                         </Link>
                       )
                     )}
-                    <div className="p-8">
+                    <div className="min-w-0 p-3 max-[159px]:p-2 min-[360px]:p-4 sm:p-8">
                       <div className="flex items-start justify-between gap-3">
-                        <h2 className="text-2xl font-semibold text-slate-900">
+                        <h2 className="min-w-0 break-words text-xl font-semibold text-slate-900 [overflow-wrap:anywhere] sm:text-2xl">
                           {post.status === 'draft' ? post.title : <Link to={getPostUrl(post)} className="transition hover:text-emerald-600">{post.title}</Link>}
                         </h2>
                         {post.status === 'draft' && <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700">Draft</span>}
                       </div>
-                      <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-600">
-                        <span><i className="fas fa-user mr-1"></i>{post.status === 'draft' ? (post.author || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || 'Author') : <Link to={getPostAuthorUrl(post)} onClick={getPostAuthorClickHandler(post, user, navigate)} className="hover:text-emerald-600">{post.author || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || 'Author'}</Link>}</span>
-                        <span><i className="far fa-calendar mr-1"></i>{post.date}</span>
+                      <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-600 max-[159px]:flex-col max-[159px]:items-start max-[159px]:gap-1">
+                        <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]"><i className="fas fa-user mr-1"></i>{post.status === 'draft' ? (post.author || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || 'Author') : <Link to={getPostAuthorUrl(post)} onClick={getPostAuthorClickHandler(post, user, navigate)} className="hover:text-emerald-600">{post.author || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || 'Author'}</Link>}</span>
+                        <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]"><i className="far fa-calendar mr-1"></i>{post.date}</span>
                         {post.status === 'draft' ? (
-                          <span><i className="far fa-comments mr-1"></i>{getCommentCount(post.id, commentCounts)} Comments</span>
+                          <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]"><i className="far fa-comments mr-1"></i>{getCommentCount(post.id, commentCounts)} Comments</span>
                         ) : (
-                          <Link to={`${getPostUrl(post)}#comments`} className="hover:text-emerald-600"><i className="far fa-comments mr-1"></i>{getCommentCount(post.id, commentCounts)} Comments</Link>
+                          <Link to={`${getPostUrl(post)}#comments`} className="min-w-0 max-w-full break-words [overflow-wrap:anywhere] hover:text-emerald-600"><i className="far fa-comments mr-1"></i>{getCommentCount(post.id, commentCounts)} Comments</Link>
                         )}
                       </div>
-                      <p className="mt-4 line-clamp-2 text-slate-600">{getPostExcerpt(post)}</p>
+                      <p className="mt-4 min-w-0 line-clamp-2 break-words text-slate-600 [overflow-wrap:anywhere]">{getPostExcerpt(post)}</p>
                       <div className="mt-3 flex items-center gap-1 text-xs opacity-0 select-none transition duration-200 group-hover:opacity-100">
                         <Link to={getEditPostUrl(post)} className="cursor-pointer text-[#22C55E] hover:underline">Edit</Link>
                         <span className="pointer-events-none text-slate-400">|</span>

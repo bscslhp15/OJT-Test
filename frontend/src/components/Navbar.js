@@ -123,12 +123,13 @@ const Navbar = () => {
 
   return (
     <header className="bg-white shadow-sm sticky top-0 z-20">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-20 items-center justify-between">
-          <Link to="/" className="text-2xl font-bold">
+      <div className="mx-auto max-w-7xl px-2 max-[159px]:px-1 min-[360px]:px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between gap-1 min-[360px]:h-20 min-[360px]:gap-2">
+          <Link to="/" className="shrink-0 text-xs font-bold min-[180px]:text-sm min-[240px]:text-xl sm:text-2xl">
             <span className="uppercase">
-              <span style={{ color: '#22C55E' }}>TEST</span>
-              <span style={{ color: '#000' }}>SITE</span>
+              <span className="hidden min-[160px]:inline" style={{ color: '#22C55E' }}>TEST</span>
+              <span className="hidden min-[160px]:inline" style={{ color: '#000' }}>SITE</span>
+              <span className="min-[160px]:hidden" style={{ color: '#22C55E' }}>TS</span>
             </span>
           </Link>
           <div className="hidden lg:flex lg:items-center lg:justify-between lg:gap-8">
@@ -266,8 +267,8 @@ const Navbar = () => {
             </div>
           </div>
 
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="lg:hidden text-slate-600 hover:text-emerald-600">
-            {mobileOpen ? <XMarkIcon className="h-8 w-8" /> : <Bars3Icon className="h-8 w-8" />}
+          <button onClick={() => setMobileOpen(!mobileOpen)} className="inline-flex h-5 w-5 shrink-0 items-center justify-center text-slate-600 hover:text-emerald-600 min-[160px]:h-8 min-[160px]:w-8 lg:hidden">
+            {mobileOpen ? <XMarkIcon className="h-4 w-4 min-[160px]:h-8 min-[160px]:w-8" /> : <Bars3Icon className="h-4 w-4 min-[160px]:h-8 min-[160px]:w-8" />}
           </button>
         </div>
       </div>
