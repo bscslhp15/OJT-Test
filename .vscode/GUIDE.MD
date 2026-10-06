@@ -31,3 +31,5 @@ http://localhost:3000/reset-password/{token}
 
 email sa contact
  setx TESTSITE_CONTACT_RECIPIENT "lakshal369@gmail.com"
+
+ php -r 'foreach ([587,465] as $port) { $socket=@fsockopen("smtp.gmail.com",$port,$errno,$errstr,8); echo "$port: ".($socket ? "connected" : "$errno $errstr").PHP_EOL; if ($socket) fclose($socket); }',

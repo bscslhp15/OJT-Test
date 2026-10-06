@@ -1,5 +1,6 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import AuthContext from '../context/auth-context';
 import { loadPublicPosts } from '../services/public-data';
 import { updatePost as updatePostRequest } from '../services/api';
@@ -39,6 +40,7 @@ const AdminCategories = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkAction, setBulkAction] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -62,7 +64,15 @@ const AdminCategories = () => {
   const visibleCategories = useMemo(() => categories
     .filter((category) => `${category.name} ${category.slug} ${category.description}`.toLowerCase().includes(searchQuery.toLowerCase()))
     .sort((left, right) => left.name.localeCompare(right.name)), [categories, searchQuery]);
-  const selectedVisible = visibleCategories.length > 0 && visibleCategories.every((category) => selectedIds.includes(category.id));
+  const categoriesPerPage = 20;
+  const pageCount = Math.max(1, Math.ceil(visibleCategories.length / categoriesPerPage));
+  const displayedPage = Math.min(currentPage, pageCount);
+  const pageCategories = visibleCategories.slice((displayedPage - 1) * categoriesPerPage, displayedPage * categoriesPerPage);
+  const selectedVisible = pageCategories.length > 0 && pageCategories.every((category) => selectedIds.includes(category.id));
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, pageCount));
+  }, [pageCount]);
 
   const getCount = (categoryName) => posts.filter((post) => splitCategoryNames(post.category)
     .some((name) => name.toLowerCase() === categoryName.toLowerCase())).length;
@@ -258,7 +268,7 @@ const AdminCategories = () => {
     <main className="min-h-full bg-[#F7FAF7] px-4 py-6 text-[#1E1E1E] md:px-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-normal">Categories</h1>
-        <form onSubmit={(event) => { event.preventDefault(); setSearchQuery(searchInput.trim()); }} className="flex gap-2">
+        <form onSubmit={(event) => { event.preventDefault(); setSearchQuery(searchInput.trim()); setCurrentPage(1); }} className="flex gap-2">
           <label htmlFor="category-search" className="sr-only">Search categories</label>
           <input id="category-search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} className="h-9 w-44 rounded-xl border border-[#B8C0B8] bg-white px-2 text-sm focus:border-[#22C55E] focus:outline-none focus:ring-1 focus:ring-[#22C55E]" />
           <button type="submit" className="h-9 rounded-xl border border-[#22C55E] px-3 text-sm text-[#176B34] transition-colors hover:bg-[#22C55E] hover:text-[#102718]">Search Categories</button>
@@ -300,7 +310,7 @@ const AdminCategories = () => {
             <table className="w-full min-w-[610px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-[#C8D0C8] text-[#384238]">
-                  <th className="w-10 px-3 py-2"><input type="checkbox" aria-label="Select all visible categories" checked={selectedVisible} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...new Set([...current, ...visibleCategories.map((category) => category.id)])] : current.filter((id) => !visibleCategories.some((category) => category.id === id)))} /></th>
+                  <th className="w-10 px-3 py-2"><input type="checkbox" aria-label="Select all visible categories" checked={selectedVisible} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...new Set([...current, ...pageCategories.map((category) => category.id)])] : current.filter((id) => !pageCategories.some((category) => category.id === id)))} /></th>
                   <th className="px-3 py-3 font-medium">Name <span className="text-[#899389]">▲</span></th>
                   <th className="px-3 py-3 font-medium">Description</th>
                   <th className="px-3 py-3 font-medium">Slug</th>
@@ -310,7 +320,7 @@ const AdminCategories = () => {
               <tbody>
                 {loading ? <tr><td colSpan={5} className="px-3 py-8 text-center text-[#69736A]">Loading categories...</td></tr>
                   : visibleCategories.length === 0 ? <tr><td colSpan={5} className="px-3 py-8 text-center text-[#69736A]">No categories found.</td></tr>
-                    : visibleCategories.map((category, index) => quickEditId === category.id ? (
+                    : pageCategories.map((category, index) => quickEditId === category.id ? (
                       <tr key={category.id} className="border-b border-[#DCE5DC] bg-[#F7FAF7]">
                         <td colSpan={5} className="px-4 py-3">
                           <form onSubmit={saveQuickEdit} className="grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-x-4">
@@ -347,7 +357,7 @@ const AdminCategories = () => {
               </tbody>
               <tfoot>
                 <tr className="border-t border-[#C8D0C8] text-[#384238]">
-                  <th className="px-3 py-2"><input type="checkbox" aria-label="Select all visible categories" checked={selectedVisible} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...new Set([...current, ...visibleCategories.map((category) => category.id)])] : current.filter((id) => !visibleCategories.some((category) => category.id === id)))} /></th>
+                  <th className="px-3 py-2"><input type="checkbox" aria-label="Select all visible categories" checked={selectedVisible} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...new Set([...current, ...pageCategories.map((category) => category.id)])] : current.filter((id) => !pageCategories.some((category) => category.id === id)))} /></th>
                   <th className="px-3 py-3 font-medium">Name <span className="text-[#899389]">▲</span></th>
                   <th className="px-3 py-3 font-medium">Description</th>
                   <th className="px-3 py-3 font-medium">Slug</th>
@@ -356,9 +366,19 @@ const AdminCategories = () => {
               </tfoot>
             </table>
           </div>
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <div className="relative mt-2 flex flex-wrap items-center justify-between gap-3">
             {renderBulkActions('category-bulk-action-bottom')}
             <span className="text-xs text-[#69736A]">{visibleCategories.length} {visibleCategories.length === 1 ? 'item' : 'items'}</span>
+            {visibleCategories.length > categoriesPerPage && (
+              <nav aria-label="Category pagination" className="flex w-full items-center justify-center gap-2 sm:absolute sm:left-1/2 sm:w-auto sm:-translate-x-1/2">
+                <button type="button" onClick={() => setCurrentPage(displayedPage - 1)} disabled={displayedPage === 1} className="inline-flex h-8 items-center gap-1 rounded-md bg-[#5B7DBB] px-2.5 text-xs font-semibold text-white hover:bg-[#496BA8] disabled:cursor-not-allowed disabled:opacity-40">
+                  <ChevronLeftIcon className="h-3.5 w-3.5" aria-hidden="true" /> Prev 20
+                </button>
+                <button type="button" onClick={() => setCurrentPage(displayedPage + 1)} disabled={displayedPage === pageCount} className="inline-flex h-8 items-center gap-1 rounded-md bg-[#5B7DBB] px-2.5 text-xs font-semibold text-white hover:bg-[#496BA8] disabled:cursor-not-allowed disabled:opacity-40">
+                  Next 20 <ChevronRightIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </nav>
+            )}
           </div>
           <p className="mt-6 text-xs leading-5 text-[#526052]">Deleting a category does not delete its posts. Posts assigned to a deleted category are moved to Uncategorized.</p>
         </section>

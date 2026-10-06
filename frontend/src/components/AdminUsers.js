@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronUpDownIcon, UserIcon } from '@heroicons/react/24/outline';
+import { ChevronLeftIcon, ChevronRightIcon, ChevronUpDownIcon, UserIcon } from '@heroicons/react/24/outline';
 import AuthContext from '../context/auth-context';
 import { applyAdminUserBulkAction, fetchAdminUsers } from '../services/api';
 
@@ -72,6 +72,7 @@ const AdminUsers = () => {
   const [users, setUsers] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkAction, setBulkAction] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedRole, setSelectedRole] = useState('');
   const [bulkActionBusy, setBulkActionBusy] = useState(false);
   const [actionNotice, setActionNotice] = useState('');
@@ -80,8 +81,16 @@ const AdminUsers = () => {
   const [loadError, setLoadError] = useState('');
   const totalUsers = users.length;
   const roles = [...new Set(users.map(userRole))];
+  const usersPerPage = 20;
+  const pageCount = Math.max(1, Math.ceil(totalUsers / usersPerPage));
+  const displayedPage = Math.min(currentPage, pageCount);
+  const pageUsers = users.slice((displayedPage - 1) * usersPerPage, displayedPage * usersPerPage);
   const controlClass = 'h-9 rounded-xl border border-[#B8C0B8] bg-white px-2 text-sm text-[#1E1E1E] focus:border-[#22C55E] focus:outline-none focus:ring-1 focus:ring-[#22C55E]';
   const buttonClass = 'h-9 rounded-xl border border-[#22C55E] px-3 text-sm text-[#176B34] transition-colors hover:bg-[#22C55E] hover:text-[#102718]';
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, pageCount));
+  }, [pageCount]);
 
   useEffect(() => {
     let isMounted = true;
@@ -249,11 +258,21 @@ const AdminUsers = () => {
 
       {loading ? <div className="rounded-xl border border-[#C8D0C8] bg-white px-3 py-5 text-sm text-[#69736A]">Loading users...</div>
         : loadError ? <div role="alert" className="rounded-xl border-l-4 border-red-600 bg-white px-3 py-2 text-sm text-red-700">{loadError}</div>
-          : <UserTable users={users} selectedIds={selectedIds} onToggleUser={toggleUser} onToggleAll={toggleAllUsers} />}
+          : <UserTable users={pageUsers} selectedIds={selectedIds} onToggleUser={toggleUser} onToggleAll={toggleAllUsers} />}
 
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+      <div className="relative mt-2 flex flex-wrap items-center justify-between gap-3">
         <UserControls position="bottom" />
         <span className="text-xs text-[#69736A]">{totalUsers} {totalUsers === 1 ? 'item' : 'items'}</span>
+        {totalUsers > usersPerPage && (
+          <nav aria-label="User pagination" className="flex w-full items-center justify-center gap-2 sm:absolute sm:left-1/2 sm:w-auto sm:-translate-x-1/2">
+            <button type="button" onClick={() => setCurrentPage(displayedPage - 1)} disabled={displayedPage === 1} className="inline-flex h-8 items-center gap-1 rounded-md bg-[#5B7DBB] px-2.5 text-xs font-semibold text-white hover:bg-[#496BA8] disabled:cursor-not-allowed disabled:opacity-40">
+              <ChevronLeftIcon className="h-3.5 w-3.5" aria-hidden="true" /> Prev 20
+            </button>
+            <button type="button" onClick={() => setCurrentPage(displayedPage + 1)} disabled={displayedPage === pageCount} className="inline-flex h-8 items-center gap-1 rounded-md bg-[#5B7DBB] px-2.5 text-xs font-semibold text-white hover:bg-[#496BA8] disabled:cursor-not-allowed disabled:opacity-40">
+              Next 20 <ChevronRightIcon className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </nav>
+        )}
       </div>
     </main>
   );

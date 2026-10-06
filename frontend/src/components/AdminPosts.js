@@ -1,7 +1,7 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ChatBubbleLeftRightIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftRightIcon, ChevronLeftIcon, ChevronRightIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { fetchComments, updatePost as updatePostRequest } from '../services/api';
 import AuthContext from '../context/auth-context';
 import { loadPublicPosts, loadPublicProfile } from '../services/public-data';
@@ -166,11 +166,13 @@ const AdminPosts = () => {
   const [appliedFilters, setAppliedFilters] = useState({ category: 'all', month: 'all' });
   const [selectedPostIds, setSelectedPostIds] = useState([]);
   const [bulkAction, setBulkAction] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [status, setStatus] = useState(() => searchParams.get('status') === 'trash' ? 'trash' : 'all');
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState('');
   const [quickEditPostId, setQuickEditPostId] = useState(null);
   const [quickEditForm, setQuickEditForm] = useState({});
+  const postsPerPage = 20;
 
   useEffect(() => {
     let isMounted = true;
@@ -204,8 +206,15 @@ const AdminPosts = () => {
     const searchable = [post.title, post.author, post.category, ...(Array.isArray(post.tags) ? post.tags : [])].join(' ').toLowerCase();
     return matchesStatus && matchesCategory && matchesMonth && searchable.includes(query.trim().toLowerCase());
   });
+  const pageCount = Math.max(1, Math.ceil(visiblePosts.length / postsPerPage));
+  const displayedPage = Math.min(currentPage, pageCount);
+  const pagePosts = visiblePosts.slice((displayedPage - 1) * postsPerPage, displayedPage * postsPerPage);
   const selectedPosts = visiblePosts.filter((post) => selectedPostIds.includes(String(post.id)));
-  const allVisibleSelected = visiblePosts.length > 0 && visiblePosts.every((post) => selectedPostIds.includes(String(post.id)));
+  const allVisibleSelected = pagePosts.length > 0 && pagePosts.every((post) => selectedPostIds.includes(String(post.id)));
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, pageCount));
+  }, [pageCount]);
 
   const changePostStatus = async (post, nextStatus) => {
     const authKey = user?.authKey || user?.auth_key;
@@ -370,25 +379,25 @@ const AdminPosts = () => {
     <main className="min-h-full bg-[#F7FAF7] px-4 py-6 text-[#1E1E1E] md:px-8">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-[23px] font-normal leading-tight">Posts</h1>
-        <Link to="/testsite/admin/posts/add" className="inline-flex h-8 items-center rounded-xl border border-[#22C55E] px-3 text-sm text-[#176B34] transition-colors hover:bg-[#22C55E] hover:text-[#102718]">Add Post</Link>
+        <Link to="/create-post" className="inline-flex h-8 items-center rounded-xl border border-[#22C55E] px-3 text-sm text-[#176B34] transition-colors hover:bg-[#22C55E] hover:text-[#102718]">Add Post</Link>
       </div>
 
       {actionError && <div role="alert" className="mt-4 rounded-xl border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{actionError}</div>}
 
       <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[#69736A]">
-          <button type="button" onClick={() => setStatus('all')} className={status === 'all' ? 'font-semibold text-[#1E1E1E]' : 'text-[#2271B1] hover:text-[#22C55E]'}>All ({posts.length})</button>
+          <button type="button" onClick={() => { setStatus('all'); setCurrentPage(1); }} className={status === 'all' ? 'font-semibold text-[#1E1E1E]' : 'text-[#2271B1] hover:text-[#22C55E]'}>All ({posts.length})</button>
           <span aria-hidden="true">|</span>
-          <button type="button" onClick={() => setStatus('published')} className={status === 'published' ? 'font-semibold text-[#1E1E1E]' : 'text-[#2271B1] hover:text-[#22C55E]'}>Published ({publishedCount})</button>
+          <button type="button" onClick={() => { setStatus('published'); setCurrentPage(1); }} className={status === 'published' ? 'font-semibold text-[#1E1E1E]' : 'text-[#2271B1] hover:text-[#22C55E]'}>Published ({publishedCount})</button>
           <span aria-hidden="true">|</span>
-          <button type="button" onClick={() => setStatus('trash')} className={status === 'trash' ? 'font-semibold text-[#1E1E1E]' : 'text-[#2271B1] hover:text-[#22C55E]'}>Trash ({trashCount})</button>
+          <button type="button" onClick={() => { setStatus('trash'); setCurrentPage(1); }} className={status === 'trash' ? 'font-semibold text-[#1E1E1E]' : 'text-[#2271B1] hover:text-[#22C55E]'}>Trash ({trashCount})</button>
         </div>
         <form onSubmit={(event) => event.preventDefault()} className="flex w-full gap-2 lg:w-auto">
           <label className="sr-only" htmlFor="admin-post-search">Search posts</label>
           <input
             id="admin-post-search"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => { setQuery(event.target.value); setCurrentPage(1); }}
             placeholder="Search posts…"
             className="h-9 min-w-0 flex-1 rounded-xl border border-[#B8C0B8] bg-white px-3 text-sm focus:border-[#22C55E] focus:outline-none focus:ring-1 focus:ring-[#22C55E] lg:w-64"
           />
@@ -441,7 +450,7 @@ const AdminPosts = () => {
           </select>
           <button
             type="button"
-            onClick={() => setAppliedFilters({ category: selectedCategory, month: selectedMonth })}
+            onClick={() => { setAppliedFilters({ category: selectedCategory, month: selectedMonth }); setCurrentPage(1); }}
             className="inline-flex h-9 items-center rounded-xl border border-[#22C55E] px-3 text-sm text-[#176B34] transition-colors hover:bg-[#22C55E] hover:text-[#102718]"
           >
             Filter
@@ -457,8 +466,8 @@ const AdminPosts = () => {
               <th scope="col" className="w-[32%] px-3 py-3 font-medium">
                 <span className="flex items-center gap-2">
                   <input type="checkbox" aria-label="Select all visible posts" checked={allVisibleSelected} onChange={(event) => setSelectedPostIds((current) => event.target.checked
-                    ? [...new Set([...current, ...visiblePosts.map((post) => String(post.id))])]
-                    : current.filter((id) => !visiblePosts.some((post) => String(post.id) === id)))} className="green-checkbox" />
+                    ? [...new Set([...current, ...pagePosts.map((post) => String(post.id))])]
+                    : current.filter((id) => !pagePosts.some((post) => String(post.id) === id)))} className="green-checkbox" />
                   Title
                 </span>
               </th>
@@ -474,7 +483,7 @@ const AdminPosts = () => {
               <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-[#69736A]">Loading posts…</td></tr>
             ) : visiblePosts.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-[#69736A]">No posts found.</td></tr>
-            ) : visiblePosts.map((post, index) => {
+            ) : pagePosts.map((post, index) => {
               const tags = Array.isArray(post.tags) ? post.tags : [];
               const comments = commentCounts[String(post.id)] ?? getLocalCommentCount(post.id);
               const trashed = isPostTrashed(post);
@@ -622,25 +631,49 @@ const AdminPosts = () => {
           </tfoot>
         </table>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <label className="sr-only" htmlFor="admin-post-bulk-action-bottom">Bulk actions</label>
-        <select
-          id="admin-post-bulk-action-bottom"
-          value={bulkAction}
-          onChange={(event) => setBulkAction(event.target.value)}
-          className="h-9 min-w-32 rounded-xl border border-[#B8C0B8] bg-white px-2 text-sm focus:border-[#22C55E] focus:outline-none focus:ring-1 focus:ring-[#22C55E]"
-        >
-          <option value="">Bulk actions</option>
-          <option value="edit">Bulk edit</option>
-          {status !== 'trash' && <option value="trash">Move to Trash</option>}
-        </select>
-        <button
-          type="button"
-          onClick={applyBulkAction}
-          className="inline-flex h-9 items-center rounded-xl border border-[#22C55E] px-3 text-sm text-[#176B34] transition-colors hover:bg-[#22C55E] hover:text-[#102718]"
-        >
-          Apply
-        </button>
+      <div className="relative mt-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <label className="sr-only" htmlFor="admin-post-bulk-action-bottom">Bulk actions</label>
+          <select
+            id="admin-post-bulk-action-bottom"
+            value={bulkAction}
+            onChange={(event) => setBulkAction(event.target.value)}
+            className="h-9 min-w-32 rounded-xl border border-[#B8C0B8] bg-white px-2 text-sm focus:border-[#22C55E] focus:outline-none focus:ring-1 focus:ring-[#22C55E]"
+          >
+            <option value="">Bulk actions</option>
+            <option value="edit">Bulk edit</option>
+            {status !== 'trash' && <option value="trash">Move to Trash</option>}
+          </select>
+          <button
+            type="button"
+            onClick={applyBulkAction}
+            className="inline-flex h-9 items-center rounded-xl border border-[#22C55E] px-3 text-sm text-[#176B34] transition-colors hover:bg-[#22C55E] hover:text-[#102718]"
+          >
+            Apply
+          </button>
+        </div>
+        {visiblePosts.length > postsPerPage && (
+          <nav aria-label="Posts pagination" className="flex w-full items-center justify-center gap-2 sm:absolute sm:left-1/2 sm:w-auto sm:-translate-x-1/2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage(displayedPage - 1)}
+              disabled={displayedPage === 1}
+              className="inline-flex h-8 items-center gap-1 rounded-md bg-[#5B7DBB] px-2.5 text-xs font-semibold text-white hover:bg-[#496BA8] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeftIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              Prev 20
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage(displayedPage + 1)}
+              disabled={displayedPage === pageCount}
+              className="inline-flex h-8 items-center gap-1 rounded-md bg-[#5B7DBB] px-2.5 text-xs font-semibold text-white hover:bg-[#496BA8] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Next 20
+              <ChevronRightIcon className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </nav>
+        )}
       </div>
     </main>
   );

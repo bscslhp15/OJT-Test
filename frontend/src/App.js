@@ -3,7 +3,7 @@ import { useContext } from 'react';
 import { AuthProvider } from './context/auth-context';
 import AuthContext from './context/auth-context';
 import Layout from './components/Layout';
-import AdminLayout, { AdminPage } from './components/Admin';
+import AdminLayout, { AdminDashboard, AdminPage } from './components/Admin';
 import AdminCategories from './components/AdminCategories';
 import AdminTags from './components/AdminTags';
 import AdminPosts from './components/AdminPosts';
@@ -48,7 +48,7 @@ function App() {
             <Route path="admin/*" element={<LegacyAdminRedirect />} />
             <Route path="testsite/admin" element={<AdminLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard" element={<AdminPage title="Dashboard" />} />
+              <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="posts">
                 <Route index element={<AdminPosts />} />
                 <Route path="add" element={<AdminPage title="Add Post" />} />

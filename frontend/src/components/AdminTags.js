@@ -1,5 +1,6 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import AuthContext from '../context/auth-context';
 import { updatePost as updatePostRequest } from '../services/api';
 import { loadPublicPosts } from '../services/public-data';
@@ -34,6 +35,7 @@ const AdminTags = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkAction, setBulkAction] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -57,7 +59,15 @@ const AdminTags = () => {
   const visibleTags = useMemo(() => tags
     .filter((tag) => `${tag.name} ${tag.slug} ${tag.description}`.toLowerCase().includes(searchQuery.toLowerCase()))
     .sort((left, right) => left.name.localeCompare(right.name)), [tags, searchQuery]);
-  const selectedVisible = visibleTags.length > 0 && visibleTags.every((tag) => selectedIds.includes(tag.id));
+  const tagsPerPage = 20;
+  const pageCount = Math.max(1, Math.ceil(visibleTags.length / tagsPerPage));
+  const displayedPage = Math.min(currentPage, pageCount);
+  const pageTags = visibleTags.slice((displayedPage - 1) * tagsPerPage, displayedPage * tagsPerPage);
+  const selectedVisible = pageTags.length > 0 && pageTags.every((tag) => selectedIds.includes(tag.id));
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, pageCount));
+  }, [pageCount]);
   const getCount = (tagName) => posts.filter((post) => getPostTags(post)
     .some((tag) => tag.toLowerCase() === tagName.toLowerCase())).length;
 
@@ -229,7 +239,7 @@ const AdminTags = () => {
     <main className="min-h-full bg-[#F7FAF7] px-4 py-6 text-[#1E1E1E] md:px-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-normal">Tags</h1>
-        <form onSubmit={(event) => { event.preventDefault(); setSearchQuery(searchInput.trim()); }} className="flex gap-2">
+        <form onSubmit={(event) => { event.preventDefault(); setSearchQuery(searchInput.trim()); setCurrentPage(1); }} className="flex gap-2">
           <label htmlFor="tag-search" className="sr-only">Search tags</label>
           <input id="tag-search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} className="h-9 w-44 rounded-xl border border-[#B8C0B8] bg-white px-2 text-sm focus:border-[#22C55E] focus:outline-none focus:ring-1 focus:ring-[#22C55E]" />
           <button type="submit" className="h-9 rounded-xl border border-[#22C55E] px-3 text-sm text-[#176B34] transition-colors hover:bg-[#22C55E] hover:text-[#102718]">Search Tags</button>
@@ -271,7 +281,7 @@ const AdminTags = () => {
             <table className="w-full min-w-[580px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-[#C8D0C8] text-[#384238]">
-                  <th className="w-10 px-3 py-3"><input type="checkbox" aria-label="Select all visible tags" checked={selectedVisible} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...new Set([...current, ...visibleTags.map((tag) => tag.id)])] : current.filter((id) => !visibleTags.some((tag) => tag.id === id)))} /></th>
+                  <th className="w-10 px-3 py-3"><input type="checkbox" aria-label="Select all visible tags" checked={selectedVisible} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...new Set([...current, ...pageTags.map((tag) => tag.id)])] : current.filter((id) => !pageTags.some((tag) => tag.id === id)))} /></th>
                   <th className="px-3 py-3 font-medium">Name <span className="text-[#899389]">▲</span></th>
                   <th className="px-3 py-3 font-medium">Description</th>
                   <th className="px-3 py-3 font-medium">Slug</th>
@@ -281,7 +291,7 @@ const AdminTags = () => {
               <tbody>
                 {loading ? <tr><td colSpan={5} className="px-3 py-8 text-center text-[#69736A]">Loading tags...</td></tr>
                   : visibleTags.length === 0 ? <tr><td colSpan={5} className="px-3 py-8 text-center text-[#69736A]">No tags found.</td></tr>
-                    : visibleTags.map((tag, index) => quickEditId === tag.id ? (
+                    : pageTags.map((tag, index) => quickEditId === tag.id ? (
                       <tr key={tag.id} className="border-b border-[#DCE5DC] bg-[#F7FAF7]">
                         <td colSpan={5} className="px-4 py-3">
                           <form onSubmit={saveQuickEdit} className="grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-x-4">
@@ -318,7 +328,7 @@ const AdminTags = () => {
               </tbody>
               <tfoot>
                 <tr className="border-t border-[#C8D0C8] text-[#384238]">
-                  <th className="w-10 px-3 py-3"><input type="checkbox" aria-label="Select all visible tags" checked={selectedVisible} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...new Set([...current, ...visibleTags.map((tag) => tag.id)])] : current.filter((id) => !visibleTags.some((tag) => tag.id === id)))} /></th>
+                  <th className="w-10 px-3 py-3"><input type="checkbox" aria-label="Select all visible tags" checked={selectedVisible} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...new Set([...current, ...pageTags.map((tag) => tag.id)])] : current.filter((id) => !pageTags.some((tag) => tag.id === id)))} /></th>
                   <th className="px-3 py-3 font-medium">Name <span className="text-[#899389]">▲</span></th>
                   <th className="px-3 py-3 font-medium">Description</th>
                   <th className="px-3 py-3 font-medium">Slug</th>
@@ -327,9 +337,19 @@ const AdminTags = () => {
               </tfoot>
             </table>
           </div>
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <div className="relative mt-2 flex flex-wrap items-center justify-between gap-3">
             {renderBulkActions('tag-bulk-action-bottom')}
             <span className="text-xs text-[#69736A]">{visibleTags.length} {visibleTags.length === 1 ? 'item' : 'items'}</span>
+            {visibleTags.length > tagsPerPage && (
+              <nav aria-label="Tag pagination" className="flex w-full items-center justify-center gap-2 sm:absolute sm:left-1/2 sm:w-auto sm:-translate-x-1/2">
+                <button type="button" onClick={() => setCurrentPage(displayedPage - 1)} disabled={displayedPage === 1} className="inline-flex h-8 items-center gap-1 rounded-md bg-[#5B7DBB] px-2.5 text-xs font-semibold text-white hover:bg-[#496BA8] disabled:cursor-not-allowed disabled:opacity-40">
+                  <ChevronLeftIcon className="h-3.5 w-3.5" aria-hidden="true" /> Prev 20
+                </button>
+                <button type="button" onClick={() => setCurrentPage(displayedPage + 1)} disabled={displayedPage === pageCount} className="inline-flex h-8 items-center gap-1 rounded-md bg-[#5B7DBB] px-2.5 text-xs font-semibold text-white hover:bg-[#496BA8] disabled:cursor-not-allowed disabled:opacity-40">
+                  Next 20 <ChevronRightIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </nav>
+            )}
           </div>
           <p className="mt-6 text-xs leading-5 text-[#526052]">Tags help readers find related posts. Deleting a tag removes it from posts but does not delete the posts.</p>
         </section>
