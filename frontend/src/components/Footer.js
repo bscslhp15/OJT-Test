@@ -34,8 +34,8 @@ const Footer = () => {
             <h3 className="break-words text-lg font-semibold text-white [overflow-wrap:anywhere] max-[159px]:text-sm">Join Our Newsletter</h3>
             <p className="mt-4 text-sm text-slate-400">Subscribe to our newsletter for the latest updates, news, and helpful insights.</p>
             <div className="mt-4 flex flex-col gap-2 lg:flex-row">
-              <input type="email" placeholder="Your email" className="w-full min-w-0 rounded-md border border-white bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-500 outline-none focus:border-[#22C55E]" />
-              <button className="w-full min-w-0 shrink-0 break-words rounded-md bg-[#22C55E] px-4 py-2 text-sm text-white hover:bg-emerald-600 max-[159px]:px-2">Subscribe</button>
+              <input type="email" placeholder="Your email" className="w-full min-w-0 flex-1 rounded-md border border-white bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-500 outline-none focus:border-[#22C55E]" />
+              <button className="w-full min-w-0 shrink-0 break-words rounded-md bg-[#22C55E] px-4 py-2 text-sm text-white hover:bg-emerald-600 max-[159px]:px-2 lg:w-auto">Subscribe</button>
             </div>
           </div>
         </div>

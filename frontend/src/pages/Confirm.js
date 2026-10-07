@@ -49,6 +49,9 @@ const Confirm = () => {
   }, [token, navigate]);
 
   const handleResend = async () => {
+    if (isResending || remainingSeconds > 0) {
+      return;
+    }
     if (!email) {
       setMessage('Enter your email address on the registration page to request a new confirmation email.');
       return;
@@ -86,7 +89,7 @@ const Confirm = () => {
                     : 'This link has expired. Request a new confirmation email.'}
                 </p>
               )}
-              <button type="button" onClick={handleResend} disabled={isResending} className="mt-6 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
+              <button type="button" onClick={handleResend} disabled={isResending || remainingSeconds > 0} className="mt-6 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
                 {isResending ? 'Sending...' : 'Resend confirmation email'}
               </button>
             </>

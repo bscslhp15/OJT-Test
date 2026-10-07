@@ -9,6 +9,23 @@ import { loadPublicPosts } from '../services/public-data';
 import { createComment as createCommentRequest, fetchComments } from '../services/api';
 
 const defaultProfile = '/images/default-profile.jpg';
+const normalizeComment = (comment, fallback = {}) => {
+  const source = comment && typeof comment === 'object' && !Array.isArray(comment) ? comment : {};
+  const normalized = { ...fallback, ...source };
+  const createdAt = normalized.created_at ? new Date(normalized.created_at) : null;
+
+  return {
+    ...normalized,
+    id: normalized.id ?? fallback.id ?? Date.now() + Math.random(),
+    name: normalized.name ?? normalized.author_name ?? fallback.name ?? 'Guests 00000000',
+    email: normalized.email ?? normalized.author_email ?? fallback.email ?? '',
+    website: normalized.website ?? fallback.website ?? '',
+    avatar: normalized.avatar || normalized.author_avatar || fallback.avatar || defaultProfile,
+    text: normalized.text ?? normalized.content ?? fallback.text ?? '',
+    date: normalized.date || (createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.toLocaleDateString() : fallback.date || ''),
+    parentId: normalized.parentId ?? normalized.parent_id ?? fallback.parentId ?? null
+  };
+};
 const readPreviewPost = (previewId) => {
   if (!previewId) return null;
   try {
@@ -280,9 +297,14 @@ const SingleBlog = () => {
 
   useEffect(() => {
     if (!post?.id || previewPost) return;
-    const localComments = JSON.parse(localStorage.getItem(`testsite-comments-${post.id}`) || '[]');
+    const storedComments = JSON.parse(localStorage.getItem(`testsite-comments-${post.id}`) || '[]');
+    const localComments = Array.isArray(storedComments)
+      ? storedComments.filter((comment) => comment && typeof comment === 'object').map((comment) => normalizeComment(comment))
+      : [];
     fetchComments(post.id, user?.authKey || user?.auth_key).then(({ data }) => {
-      const remoteComments = Array.isArray(data) ? data : [];
+      const remoteComments = Array.isArray(data)
+        ? data.filter((comment) => comment && typeof comment === 'object').map((comment) => normalizeComment(comment))
+        : [];
       if (remoteComments.length > 0 || localComments.length === 0) {
         setComments(remoteComments.length > 0 ? remoteComments : localComments);
         return;
@@ -305,7 +327,7 @@ const SingleBlog = () => {
               authKey: user?.authKey || user?.auth_key
             });
             idMap.set(String(comment.id), syncedComment.id);
-            syncedComments.push(syncedComment);
+            syncedComments.push(normalizeComment(syncedComment, comment));
           } catch (error) {
             syncedComments.push(comment);
           }
@@ -475,11 +497,18 @@ const SingleBlog = () => {
         avatar: newComment.avatar,
         authKey: user?.authKey || user?.auth_key
       });
-      setComments((current) => [...current, data]);
+      const savedComment = data?.comment && typeof data.comment === 'object' ? data.comment : data;
+      if (!savedComment?.id) throw new Error('The comment was not saved.');
+      setComments((current) => [...current, normalizeComment(savedComment, newComment)]);
     } catch (error) {
-      const nextComments = [...comments, newComment];
-      setComments(nextComments);
-      localStorage.setItem(`testsite-comments-${post.id}`, JSON.stringify(nextComments));
+      setComments((current) => [...current, newComment]);
+      try {
+        const storedComments = JSON.parse(localStorage.getItem(`testsite-comments-${post.id}`) || '[]');
+        const nextComments = [...(Array.isArray(storedComments) ? storedComments : []), newComment];
+        localStorage.setItem(`testsite-comments-${post.id}`, JSON.stringify(nextComments));
+      } catch (storageError) {
+        console.error('Unable to save the comment locally.', storageError);
+      }
     }
     setCommentEmail('');
     setCommentWebsite('');
@@ -499,11 +528,18 @@ const SingleBlog = () => {
         authKey: user?.authKey || user?.auth_key,
         avatar: newReply.avatar
       });
-      setComments((current) => [...current, data]);
+      const savedReply = data?.comment && typeof data.comment === 'object' ? data.comment : data;
+      if (!savedReply?.id) throw new Error('The reply was not saved.');
+      setComments((current) => [...current, normalizeComment(savedReply, newReply)]);
     } catch (error) {
-      const nextComments = [...comments, newReply];
-      setComments(nextComments);
-      localStorage.setItem(`testsite-comments-${post.id}`, JSON.stringify(nextComments));
+      setComments((current) => [...current, newReply]);
+      try {
+        const storedComments = JSON.parse(localStorage.getItem(`testsite-comments-${post.id}`) || '[]');
+        const nextComments = [...(Array.isArray(storedComments) ? storedComments : []), newReply];
+        localStorage.setItem(`testsite-comments-${post.id}`, JSON.stringify(nextComments));
+      } catch (storageError) {
+        console.error('Unable to save the reply locally.', storageError);
+      }
     }
     setReplyText('');
     setReplyTo(null);
