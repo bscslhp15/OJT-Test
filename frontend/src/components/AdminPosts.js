@@ -63,7 +63,10 @@ const loadCommentCounts = async (posts, authKey) => {
       const postId = String(comment.post_id ?? comment.postId ?? '');
       if (postId in counts) counts[postId] += 1;
     }
-    return counts;
+    return Object.fromEntries(posts.map((post) => {
+      const postId = String(post.id);
+      return [postId, Math.max(counts[postId] || 0, localCounts[postId] || 0)];
+    }));
   } catch (error) {
     return localCounts;
   }

@@ -12,6 +12,34 @@ const commentDate = (comment) => {
     : date.toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: 'numeric', minute: '2-digit' });
 };
 
+const getLocalComments = (post) => {
+  try {
+    const comments = JSON.parse(localStorage.getItem(`testsite-comments-${post.id}`) || '[]');
+    if (!Array.isArray(comments)) return [];
+    const idMap = new Map(comments.map((comment, index) => [
+      String(comment?.id ?? index),
+      `local-${post.id}-${index}`
+    ]));
+
+    return comments.filter((comment) => comment && typeof comment === 'object' && (comment.text || comment.content)).map((comment, index) => ({
+      ...comment,
+      id: idMap.get(String(comment.id ?? index)),
+      post_id: comment.post_id ?? comment.postId ?? post.id,
+      parentId: idMap.get(String(comment.parentId ?? comment.parent_id)) || comment.parentId || comment.parent_id || null,
+      name: comment.name || comment.author_name || 'Guest',
+      email: comment.email || comment.author_email || '',
+      website: comment.website || '',
+      avatar: comment.avatar || comment.author_avatar || '',
+      text: comment.text || comment.content,
+      date: comment.date || comment.created_at || comment.createdAt || '',
+      status: comment.status || 'local',
+      localOnly: true
+    }));
+  } catch (error) {
+    return [];
+  }
+};
+
 const AdminComments = () => {
   const { user } = useContext(AuthContext);
   const [searchParams] = useSearchParams();
@@ -38,8 +66,23 @@ const AdminComments = () => {
     Promise.all([fetchComments(undefined, authKey, true), loadPublicPosts()])
       .then(([commentResponse, loadedPosts]) => {
         if (!isMounted) return;
-        setComments(Array.isArray(commentResponse.data) ? commentResponse.data : []);
-        setPosts(Array.isArray(loadedPosts) ? loadedPosts : []);
+        const remoteComments = Array.isArray(commentResponse.data) ? commentResponse.data : [];
+        const safePosts = Array.isArray(loadedPosts) ? loadedPosts : [];
+        const remoteFingerprints = new Set(remoteComments.map((comment) => [
+          String(comment.post_id ?? comment.postId ?? ''),
+          String(comment.email || comment.author_email || comment.name || comment.author_name || '').toLowerCase(),
+          String(comment.text || comment.content || '').trim()
+        ].join('|')));
+        const localComments = safePosts.flatMap(getLocalComments).filter((comment) => !remoteComments.some((remote) => (
+          String(remote.id) === String(comment.id)
+          || remoteFingerprints.has([
+            String(comment.post_id ?? comment.postId ?? ''),
+            String(comment.email || comment.author_email || comment.name || comment.author_name || '').toLowerCase(),
+            String(comment.text || comment.content || '').trim()
+          ].join('|'))
+        )));
+        setComments([...remoteComments, ...localComments]);
+        setPosts(safePosts);
       })
       .catch(() => {
         if (isMounted) setError('Could not load comments. Please try again.');
@@ -266,7 +309,9 @@ const AdminComments = () => {
                     {parent && <div className="mb-1 text-xs text-[#69736A]">In reply to <Link to={`${getPostUrl(post || {})}#comment-${parent.id}`} className="text-[#2271B1] hover:underline">{parent.name || 'Comment'}</Link>.</div>}
                     <p className="break-words text-sm leading-5 text-[#384238] [overflow-wrap:anywhere]">{comment.text}</p>
                     <div className="mt-1 flex flex-wrap items-center gap-x-1 text-xs text-[#16803C] opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
-                      {comment.status === 'spam' ? (
+                      {comment.localOnly ? (
+                        <span className="text-[#69736A]">Local only; not saved to the server.</span>
+                      ) : comment.status === 'spam' ? (
                         <>
                           <button type="button" disabled={moderatingId === String(comment.id)} onClick={() => changeCommentStatus(comment, 'not-spam')} className="hover:underline disabled:opacity-50">{moderatingId === String(comment.id) ? 'Saving...' : 'Not Spam'}</button><span aria-hidden="true" className="text-[#8A948A]">|</span>
                           <button type="button" onClick={() => changeCommentStatus(comment, 'delete-permanently')} className="text-red-600 hover:underline">Delete Permanently</button>
