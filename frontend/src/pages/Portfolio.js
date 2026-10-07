@@ -4,80 +4,120 @@ import PageHeader from '../components/page-header';
 
 const projects = [
   {
-    title: 'Miel & Co.',
-    category: 'Product',
-    discipline: 'Packaging concept',
-    image: '/images/gallery-image-1.png',
-    alt: 'Tea packaging and a cup arranged as a product still life',
-    year: '2026',
-    tone: 'bg-[#F4EEE5]'
+    title: 'Alexis: Brand marketing designer portfolio',
+    category: 'Personal',
+    discipline: 'Brand strategy & visual identity',
+    image: '/images/portfolio-office-woman-profile-2.jpeg',
+    alt: 'Creative professional portrait in a modern office',
+    year: '2026'
   },
   {
-    title: 'Quiet Forms',
-    category: 'Still life',
-    discipline: 'Art direction',
-    image: '/images/gallery-image-2.png',
-    alt: 'Sculptural green plant in a pale ceramic pot',
-    year: '2026',
-    tone: 'bg-[#EAF3F0]'
+    title: 'Alice: Architect portfolio',
+    category: 'Personal',
+    discipline: 'Architecture & interiors',
+    image: '/images/portfolio-office-woman-profile.jpg',
+    alt: 'Architect working at a desk in a bright studio',
+    year: '2026'
   },
   {
-    title: 'Everyday Objects',
-    category: 'Product',
-    discipline: 'Furniture study',
-    image: '/images/gallery-image-3.png',
-    alt: 'Minimal white wooden stool against a blue backdrop',
-    year: '2025',
-    tone: 'bg-[#E8F1F5]'
+    title: 'Alice: UX designer portfolio',
+    category: 'Personal',
+    discipline: 'Digital product design',
+    image: '/images/portfolio-office-man-profile.jpg',
+    alt: 'Designer reviewing work on a tablet in an office',
+    year: '2026'
   },
   {
-    title: 'Light / Line',
-    category: 'Product',
-    discipline: 'Industrial design',
-    image: '/images/gallery-image-4.png',
-    alt: 'Adjustable wooden desk lamp with a dark metal shade',
-    year: '2025',
-    tone: 'bg-[#F1EFEC]'
+    title: 'Alicia: UGC creator portfolio',
+    category: 'Personal',
+    discipline: 'Content & creative direction',
+    image: '/images/portfolio-office-woman-profile-3.jpg',
+    alt: 'Content creator portrait in a workspace',
+    year: '2026'
   },
   {
-    title: 'Daybreak',
-    category: 'Product',
-    discipline: 'Eyewear campaign',
-    image: '/images/gallery-image-5.png',
-    alt: 'Black sunglasses photographed on a white surface',
-    year: '2025',
-    tone: 'bg-[#F0EFED]'
+    title: 'Amber: Video editor portfolio',
+    category: 'Personal',
+    discipline: 'Video & motion design',
+    image: '/images/portfolio-office-man-profile-2.jpg',
+    alt: 'Video editor working with a laptop in a studio',
+    year: '2025'
   },
   {
-    title: 'Focus / 50',
-    category: 'Still life',
-    discipline: 'Photography',
-    image: '/images/gallery-image-6.png',
-    alt: 'Camera lens in a softly lit studio',
-    year: '2024',
-    tone: 'bg-[#E9F0EF]'
+    title: 'Antonio: Creative portfolio',
+    category: 'Personal',
+    discipline: 'Art direction & campaigns',
+    image: '/images/portfolio-office-man-profile-3.jpeg',
+    alt: 'Creative professional portrait in a modern office',
+    year: '2025'
   },
   {
-    title: 'Golden Hour',
-    category: 'Still life',
-    discipline: 'Editorial image',
-    image: '/images/gallery-image-7.png',
-    alt: 'Faceted glass filled with golden tea beside wheat',
-    year: '2024',
-    tone: 'bg-[#F5F0E6]'
+    title: 'The Studio: Creative team portfolio',
+    category: 'Studio',
+    discipline: 'People & collaboration',
+    image: '/images/testimonials-office-boy.jpg',
+    alt: 'Creative professional working at a desk',
+    year: '2025'
   },
   {
-    title: 'On Time',
-    category: 'Product',
-    discipline: 'Campaign image',
-    image: '/images/gallery-image-8.png',
-    alt: 'Classic wristwatch arranged on a pale surface',
-    year: '2024',
-    tone: 'bg-[#F2EFEB]'
+    title: 'Northstar: Digital studio portfolio',
+    category: 'Studio',
+    discipline: 'Digital design & development',
+    image: '/images/testimonials-office-boy2.jpg',
+    alt: 'Team member planning a project in a bright office',
+    year: '2025'
+  },
+  {
+    title: 'Common Ground: Agency portfolio',
+    category: 'Studio',
+    discipline: 'Research & experience design',
+    image: '/images/testimonials-office-girl2.jpg',
+    alt: 'Creative team collaborating in a studio',
+    year: '2025'
+  },
+  {
+    title: 'Maya: Creative strategist portfolio',
+    category: 'Personal',
+    discipline: 'Creative strategy & storytelling',
+    image: '/images/testimonials-office-lady.jpg',
+    alt: 'Creative professional portrait',
+    year: '2025'
+  },
+  {
+    title: 'The Daily Edit: Editorial portfolio',
+    category: 'Editorial',
+    discipline: 'Stories & ideas',
+    image: '/images/blog-1.jpg',
+    alt: 'Editorial image for a creative work journal',
+    year: '2026'
+  },
+  {
+    title: 'Work Journal: Creative studio portfolio',
+    category: 'Editorial',
+    discipline: 'People & process',
+    image: '/images/blog-2.jpg',
+    alt: 'Editorial image of a team sharing ideas',
+    year: '2026'
+  },
+  {
+    title: 'Better Together: Design portfolio',
+    category: 'Editorial',
+    discipline: 'Collaboration & culture',
+    image: '/images/blog-3.jpg',
+    alt: 'Editorial image of a team working together',
+    year: '2026'
+  },
+  {
+    title: 'Ideas in Motion: Creative portfolio',
+    category: 'Editorial',
+    discipline: 'Ideas & inspiration',
+    image: '/images/blog-4.jpg',
+    alt: 'Editorial image of designers collaborating',
+    year: '2026'
   }
 ];
 
-const filters = ['All work', 'Product', 'Still life'];
+const filters = ['All work', 'Personal', 'Studio', 'Editorial'];
 
 const Portfolio = () => {
   const [activeFilter, setActiveFilter] = useState('All work');
@@ -87,13 +127,13 @@ const Portfolio = () => {
 
   return (
     <>
-      <PageHeader title="Portfolio" subtitle="Selected concepts in product, imagery, and form." />
+      <PageHeader title="Portfolio" subtitle="Selected portfolio concepts for creatives and studios." />
       <main className="mx-auto max-w-7xl px-4 pb-20 pt-10 sm:px-6 lg:px-8 max-[239px]:pb-12 max-[239px]:pt-6">
         <div className="flex flex-col gap-6 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase text-emerald-700">TestSite / Selected concepts</p>
-            <h2 className="mt-2 text-3xl font-semibold text-slate-900 max-[239px]:text-2xl">Objects with a point of view.</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">A collection of visual studies exploring useful forms, careful materials, and considered imagery.</p>
+            <p className="text-xs font-semibold uppercase text-emerald-700">TestSite / Portfolio gallery</p>
+            <h2 className="mt-2 text-3xl font-semibold text-slate-900 max-[639px]:text-2xl max-[239px]:text-xl">Creative portfolios, made personal.</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Explore personal, studio, and editorial portfolio concepts.</p>
           </div>
           <span className="text-sm text-slate-500">{visibleProjects.length} projects</span>
         </div>
@@ -112,21 +152,21 @@ const Portfolio = () => {
           ))}
         </div>
 
-        <section aria-label="Portfolio projects" className="mt-6 grid gap-x-5 gap-y-9 sm:grid-cols-2 lg:grid-cols-3">
+        <section aria-label="Portfolio projects" className="mt-6 grid gap-x-5 gap-y-9 sm:grid-cols-2 md:grid-cols-3">
           {visibleProjects.map((project, index) => (
             <article key={project.title} className="group min-w-0">
-              <div className={`relative overflow-hidden rounded-lg ${project.tone}`}>
+              <div className="relative aspect-[16/10] overflow-hidden rounded-lg bg-slate-100">
                 <img
                   src={project.image}
                   alt={project.alt}
                   loading={index > 2 ? 'lazy' : 'eager'}
-                  className="aspect-[4/3] w-full object-cover transition-transform duration-500 group-hover:scale-[1.025]"
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.025]"
                 />
                 <span className="absolute left-3 top-3 rounded-md bg-white/90 px-2.5 py-1 text-xs font-medium text-slate-700">{project.category}</span>
               </div>
               <div className="mt-3 flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="truncate text-base font-semibold text-slate-900">{project.title}</h3>
+                  <h3 className="text-base font-semibold leading-5 text-slate-900 [overflow-wrap:anywhere]">{project.title}</h3>
                   <p className="mt-1 text-sm text-slate-500">{project.discipline} <span aria-hidden="true">·</span> {project.year}</p>
                 </div>
                 <ArrowUpRightIcon className="mt-0.5 h-5 w-5 shrink-0 text-slate-400 transition-colors group-hover:text-emerald-700" aria-hidden="true" />
