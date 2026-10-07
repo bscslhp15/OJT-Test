@@ -7,6 +7,8 @@ import AdminLayout, { AdminDashboard, AdminPage } from './components/Admin';
 import AdminCategories from './components/AdminCategories';
 import AdminTags from './components/AdminTags';
 import AdminPosts from './components/AdminPosts';
+import AdminComments from './components/AdminComments';
+import AdminCommentEdit from './components/AdminCommentEdit';
 import AdminUsers from './components/AdminUsers';
 import AdminAddUser from './components/AdminAddUser';
 import Home from './pages/Home';
@@ -56,6 +58,8 @@ function App() {
                 <Route path="categories" element={<AdminCategories />} />
                 <Route path="tags" element={<AdminTags />} />
               </Route>
+              <Route path="comments" element={<AdminComments />} />
+              <Route path="comments/:id/edit" element={<AdminCommentEdit />} />
               <Route path="users" element={<AdminUsers />} />
               <Route path="users/add" element={<AdminAddUser />} />
               <Route path="users/profile" element={<AdminPage title="Profile" />} />

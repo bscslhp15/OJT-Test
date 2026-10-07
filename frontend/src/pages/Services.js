@@ -46,7 +46,7 @@ const Services = () => {
           <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
             <div className="grid gap-8 lg:grid-cols-3">
               {serviceCards.map((item, i) => (
-                <div key={item.title} className="rounded-3xl bg-white p-10 text-center shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+                <div key={item.title} className="rounded-3xl bg-white p-10 text-center shadow-sm transition hover:-translate-y-1 hover:shadow-lg max-[239px]:p-4">
               <div className="mx-auto relative h-20 w-20">
                 <svg viewBox="0 0 100 100" className="h-full w-full block" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                   <path d={blobSelection[i]} transform="translate(50 50) scale(1.12)" fill="#EFF6FF" />
@@ -71,9 +71,9 @@ const Services = () => {
           </div>
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {featureItems.map((f, idx) => (
-              <div key={f.title} className="rounded-2xl bg-white p-4 shadow-sm hover:shadow-md transition">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-md bg-slate-50">
+              <div key={f.title} className="rounded-2xl bg-white p-4 shadow-sm hover:shadow-md transition max-[239px]:p-2">
+                <div className="flex items-center gap-4 max-[239px]:gap-2">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-slate-50 max-[239px]:h-9 max-[239px]:w-9">
                     <i className={`${f.icon} ${f.color} text-lg`} aria-hidden="true"></i>
                   </div>
                   <div className="text-sm font-medium text-slate-900">{f.title}</div>

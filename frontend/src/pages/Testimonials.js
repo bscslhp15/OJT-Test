@@ -46,11 +46,11 @@ const Testimonials = () => {
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid gap-6 md:grid-cols-2">
           {testimonials.map((item) => (
-            <div key={item.name} className="rounded-3xl bg-white p-8 shadow-xl">
-              <div className="flex items-center gap-4">
-                  <img src={item.image} alt={item.name} className="h-14 w-14 rounded-full object-cover" />
+            <div key={item.name} className="rounded-3xl bg-white p-8 shadow-xl max-[239px]:p-3">
+              <div className="flex items-center gap-4 max-[239px]:gap-2">
+                  <img src={item.image} alt={item.name} className="h-14 w-14 shrink-0 rounded-full object-cover max-[239px]:h-10 max-[239px]:w-10" />
                 <div>
-                  <h3 className="text-xl font-semibold text-slate-900">{item.name}</h3>
+                  <h3 className="text-xl font-semibold text-slate-900 max-[239px]:text-base">{item.name}</h3>
                   <p className="text-sm text-slate-500">{item.role}</p>
                 </div>
               </div>

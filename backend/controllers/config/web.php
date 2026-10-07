@@ -62,6 +62,7 @@ $config = [
                         'GET users' => 'users',
                         'POST users/create' => 'create-admin-user',
                         'POST users/bulk-action' => 'users-bulk-action',
+                        'POST moderate' => 'moderate',
                         'POST register' => 'register',
                         'POST login' => 'login',
                         'POST update-profile' => 'update-profile',

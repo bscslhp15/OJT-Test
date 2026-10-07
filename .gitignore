@@ -3,6 +3,7 @@ build/
 backend/vendor/
 backend/runtime/
 backend/web/assets/
+.vscode/
 .env
 backend/controllers/config/infinity.php
 *.log

@@ -88,11 +88,11 @@ const Portfolio = () => {
   return (
     <>
       <PageHeader title="Portfolio" subtitle="Selected concepts in product, imagery, and form." />
-      <main className="mx-auto max-w-7xl px-4 pb-20 pt-10 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl px-4 pb-20 pt-10 sm:px-6 lg:px-8 max-[239px]:pb-12 max-[239px]:pt-6">
         <div className="flex flex-col gap-6 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase text-emerald-700">TestSite / Selected concepts</p>
-            <h2 className="mt-2 text-3xl font-semibold text-slate-900">Objects with a point of view.</h2>
+            <h2 className="mt-2 text-3xl font-semibold text-slate-900 max-[239px]:text-2xl">Objects with a point of view.</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">A collection of visual studies exploring useful forms, careful materials, and considered imagery.</p>
           </div>
           <span className="text-sm text-slate-500">{visibleProjects.length} projects</span>

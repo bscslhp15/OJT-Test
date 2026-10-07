@@ -26,6 +26,14 @@ export const createPost = (payload) => api.post('/post', payload);
 export const updatePost = (id, payload) => api.put(`/post/${id}`, payload);
 export const deletePostApi = (id, authKey) => api.delete(`/post/${id}`, { data: { authKey } });
 export const createComment = (payload) => api.post('/comment', payload);
-export const fetchComments = (postId) => api.get('/comment', { params: { post_id: postId } });
+export const updateComment = (id, authKey, payload) => api.put(`/comment/${id}`, payload, { headers: { 'X-Auth-Key': authKey } });
+export const fetchComments = (postId, authKey, includePending = false) => api.get('/comment', {
+  params: {
+    ...(postId === undefined || postId === null ? {} : { post_id: postId }),
+    ...(includePending ? { include_pending: 1 } : {})
+  },
+  headers: authKey ? { 'X-Auth-Key': authKey } : undefined
+});
+export const moderateComment = (authKey, payload) => api.post('/comment/moderate', payload, { headers: { 'X-Auth-Key': authKey } });
 
 export default api;

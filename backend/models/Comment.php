@@ -21,6 +21,8 @@ class Comment extends ActiveRecord
             ['website', 'string', 'max' => 255],
             ['author_avatar', 'string'],
             ['parent_id', 'integer'],
+            ['status', 'in', 'range' => ['approved', 'pending', 'spam', 'trash']],
+            ['previous_status', 'in', 'range' => ['approved', 'pending', 'spam']],
             ['created_at', 'safe'],
         ];
     }

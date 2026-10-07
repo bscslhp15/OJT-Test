@@ -67,7 +67,7 @@ const Pricing = () => {
           {plans.map((plan) => (
             <div
               key={plan.title}
-              className={`relative flex min-h-[480px] flex-col justify-between overflow-hidden rounded-2xl bg-white p-8 transition transform hover:-translate-y-1 ${
+              className={`relative flex min-h-[480px] flex-col justify-between overflow-hidden rounded-2xl bg-white p-8 transition transform hover:-translate-y-1 max-[239px]:min-h-0 max-[239px]:p-3 ${
                 plan.highlight
                   ? 'border-2 border-[#22C55E] shadow-lg'
                   : 'border border-slate-200 shadow-sm ring-1 ring-slate-50'
@@ -83,7 +83,7 @@ const Pricing = () => {
                 <div className="text-sm uppercase tracking-[0.3em] text-slate-500">{plan.title}</div>
 
                 <div className="mt-6">
-                  <div className="text-5xl font-semibold text-[#22C55E]">{plan.price}</div>
+                  <div className="text-5xl font-semibold text-[#22C55E] max-[239px]:text-3xl">{plan.price}</div>
                   <div className="mt-1 text-sm text-slate-500">{plan.period}</div>
                 </div>
 
@@ -119,15 +119,15 @@ const Pricing = () => {
           </div>
           <div className="mt-10 space-y-4">
             {faqsState.map((item, index) => (
-              <div key={item.question} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div key={item.question} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm max-[239px]:p-3">
                 <button
                   onClick={() => toggleFaq(index)}
                   className="flex w-full items-center justify-between text-left text-base font-medium text-slate-900"
                   aria-expanded={item.open}
                 >
-                  <div className="flex items-center gap-4">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600">?</span>
-                    <span>{item.question}</span>
+                  <div className="flex items-center gap-4 max-[239px]:gap-2">
+                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 max-[239px]:h-6 max-[239px]:w-6">?</span>
+                    <span className="min-w-0">{item.question}</span>
                   </div>
                   <svg
                     className={`h-5 w-5 text-slate-400 transform transition-transform duration-200 ${item.open ? 'rotate-90' : ''}`}

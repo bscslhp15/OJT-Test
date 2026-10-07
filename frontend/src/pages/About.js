@@ -48,7 +48,7 @@ const About = () => {
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
           <div>
-            <h2 className="text-4xl font-semibold text-slate-900">Reliable Office Systems & Business Support</h2>
+            <h2 className="text-4xl font-semibold text-slate-900 max-[239px]:text-3xl">Reliable Office Systems & Business Support</h2>
             <p className="mt-6 text-lg leading-8 text-slate-600">
               We provide enterprise-grade office systems, consultancy, and managed services to help your organization operate securely and efficiently.
             </p>
@@ -88,9 +88,9 @@ const About = () => {
           <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {teamMembers.map((member) => (
               <div key={member.name} className="overflow-hidden rounded-3xl bg-white shadow-xl">
-                <img src={member.image} alt={member.name} className="h-72 w-full object-cover" />
-                <div className="p-6 text-center">
-                  <h4 className="text-lg font-semibold text-slate-900">{member.name}</h4>
+                <img src={member.image} alt={member.name} className="h-72 w-full object-cover max-[239px]:h-48" />
+                <div className="p-6 text-center max-[239px]:p-3">
+                  <h4 className="text-lg font-semibold text-slate-900 max-[239px]:text-base">{member.name}</h4>
                   <p className="mt-2 text-sm text-slate-500">{member.role}</p>
                 </div>
               </div>

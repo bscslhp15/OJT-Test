@@ -151,8 +151,8 @@ const Home = () => {
       {/* Gallery masonry-like grid */}
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div>
-          <div className="relative flex gap-3 justify-center mb-6">
-            <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
+          <div className="relative flex flex-wrap justify-center gap-3 mb-6">
+            <div className="absolute bottom-0 left-0 right-0 pointer-events-none max-[359px]:hidden">
               <div
                 className="bg-[#22C55E] h-1 rounded-full transition-all duration-200"
                 style={{ position: 'absolute', left: `${indicator.left}px`, width: `${indicator.width}px` }}

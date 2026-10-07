@@ -53,10 +53,10 @@ const getRestoredStatus = (post) => {
   return status.startsWith('trash:') ? status.slice(6) || 'published' : 'published';
 };
 
-const loadCommentCounts = async (posts) => {
+const loadCommentCounts = async (posts, authKey) => {
   const localCounts = Object.fromEntries(posts.map((post) => [String(post.id), getLocalCommentCount(post.id)]));
   try {
-    const { data } = await fetchComments();
+    const { data } = await fetchComments(undefined, authKey, true);
     if (!Array.isArray(data)) return localCounts;
     const counts = Object.fromEntries(posts.map((post) => [String(post.id), 0]));
     for (const comment of data) {
@@ -179,7 +179,8 @@ const AdminPosts = () => {
     loadPublicPosts()
       .then(async (loadedPosts) => {
         const safePosts = Array.isArray(loadedPosts) ? loadedPosts : [];
-        const counts = await loadCommentCounts(safePosts);
+        const authKey = user?.authKey || user?.auth_key;
+        const counts = await loadCommentCounts(safePosts, authKey);
         if (!isMounted) return;
         setPosts(safePosts);
         setCommentCounts(counts);
@@ -609,7 +610,7 @@ const AdminPosts = () => {
                   </td>
                   <td className="px-3 py-3 text-[#526052]">{tags.length ? tags.join(', ') : '—'}</td>
                   <td className="px-3 py-3 text-center">
-                    <Link to={`${getPostUrl(post)}#comments`} aria-label={`${comments} comments`} className="inline-flex min-w-7 justify-center rounded-sm bg-[#69736A] px-1.5 py-0.5 text-xs font-semibold text-white transition-colors hover:bg-[#16803C]">{comments}</Link>
+                    <Link to={`/testsite/admin/comments?post=${encodeURIComponent(post.id)}`} aria-label={`${comments} comments`} className="inline-flex min-w-7 justify-center rounded-sm bg-[#69736A] px-1.5 py-0.5 text-xs font-semibold text-white transition-colors hover:bg-[#16803C]">{comments}</Link>
                   </td>
                   <td className="px-3 py-3 text-xs leading-5 text-[#526052]">
                     <span className="block capitalize">{trashed ? 'Trash' : post.status || 'published'}</span>

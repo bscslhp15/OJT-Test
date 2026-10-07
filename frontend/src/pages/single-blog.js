@@ -281,7 +281,7 @@ const SingleBlog = () => {
   useEffect(() => {
     if (!post?.id || previewPost) return;
     const localComments = JSON.parse(localStorage.getItem(`testsite-comments-${post.id}`) || '[]');
-    fetchComments(post.id).then(({ data }) => {
+    fetchComments(post.id, user?.authKey || user?.auth_key).then(({ data }) => {
       const remoteComments = Array.isArray(data) ? data : [];
       if (remoteComments.length > 0 || localComments.length === 0) {
         setComments(remoteComments.length > 0 ? remoteComments : localComments);
@@ -526,30 +526,39 @@ const SingleBlog = () => {
   const getCommentProfileUrl = (comment) => getPostAuthorUrl(getCommentProfilePost(comment));
 
   const renderComment = (comment, isReply = false) => (
-    <div key={comment.id} className={`flex gap-4 border-b border-slate-100 pb-5 last:border-0 ${isReply ? 'ml-10 pt-4' : ''}`}>
-      <Link to={getCommentProfileUrl(comment)} onClick={getPostAuthorClickHandler(getCommentProfilePost(comment), user, navigate)} aria-label={`View ${comment.name || 'comment author'} profile`} className="flex-shrink-0 rounded-full transition hover:opacity-80">
-        <img src={getCommentAvatar(comment)} alt="Comment author" className="h-12 w-12 rounded-full object-cover" />
-      </Link>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Link to={getCommentProfileUrl(comment)} className="text-sm font-semibold text-slate-900 transition hover:text-emerald-600">{comment.name || 'Guests 00000000'}</Link>
-          <button type="button" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)} className="text-xs font-semibold text-slate-500 hover:text-emerald-600">Reply</button>
+    <div id={`comment-${comment.id}`} key={comment.id} className={`min-w-0 border-b border-slate-100 pb-5 last:border-0 ${isReply ? 'ml-6 pt-4' : ''}`}>
+      <div className={`flex min-w-0 ${isReply ? 'gap-3' : 'gap-4'}`}>
+        <Link to={getCommentProfileUrl(comment)} onClick={getPostAuthorClickHandler(getCommentProfilePost(comment), user, navigate)} aria-label={`View ${comment.name || 'comment author'} profile`} className="flex-shrink-0 rounded-full transition hover:opacity-80">
+          <img src={getCommentAvatar(comment)} alt="Comment author" className={`rounded-full object-cover ${isReply ? 'h-10 w-10' : 'h-12 w-12'}`} />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Link to={getCommentProfileUrl(comment)} className="text-sm font-semibold text-slate-900 transition hover:text-emerald-600">{comment.name || 'Guests 00000000'}</Link>
+            <button type="button" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)} className="text-xs font-semibold text-slate-500 hover:text-emerald-600">Reply</button>
+          </div>
+          <div className="mt-1 text-xs text-slate-400">{comment.date}</div>
+                  {comment.status === 'pending' && (
+                    <p className="mt-2 rounded-md border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-xs italic leading-5 text-amber-900">
+                      Your comment is awaiting moderation. This is a preview; your comment will be visible after it has been approved.
+                    </p>
+                  )}
+                  <p className="mt-2 break-words text-sm leading-6 text-slate-600 [overflow-wrap:anywhere]">{comment.text}</p>
+          {replyTo === comment.id && (
+            user && !user.confirmed ? (
+              <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">Please confirm your account before replying.</p>
+            ) : (
+              <form onSubmit={(event) => handleReplySubmit(event, comment.id)} className="mt-4 space-y-3">
+                <textarea value={replyText} onChange={(event) => setReplyText(event.target.value)} placeholder="Write your reply *" className="min-h-24 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm" required />
+                <div className="flex gap-3">
+                  <button type="submit" className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Post Reply</button>
+                  <button type="button" onClick={() => { setReplyTo(null); setReplyText(''); }} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+                </div>
+              </form>
+            )
+          )}
         </div>
-        <div className="mt-1 text-xs text-slate-400">{comment.date}</div>
-        <p className="mt-2 text-sm leading-6 text-slate-600">{comment.text}</p>
-        {replyTo === comment.id && (
-          user && !user.confirmed ? (
-            <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">Please confirm your account before replying.</p>
-          ) : (
-            <form onSubmit={(event) => handleReplySubmit(event, comment.id)} className="mt-4 space-y-3">
-              <textarea value={replyText} onChange={(event) => setReplyText(event.target.value)} placeholder="Write your reply *" className="min-h-24 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm" required />
-              <div className="flex gap-3">
-                <button type="submit" className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Post Reply</button>
-                <button type="button" onClick={() => { setReplyTo(null); setReplyText(''); }} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-              </div>
-            </form>
-          )
-        )}
+      </div>
+      <div className="mt-3 space-y-3">
         {comments.filter((reply) => String(reply.parentId) === String(comment.id)).map((reply) => renderComment(reply, true))}
       </div>
     </div>

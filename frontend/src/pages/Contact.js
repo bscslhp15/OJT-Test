@@ -59,9 +59,9 @@ const Contact = () => {
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="space-y-8">
           <div className="grid gap-6 md:grid-cols-3">
-            <div className="rounded-3xl bg-white p-8 shadow-xl">
-              <div className="flex items-start gap-4">
-                <div className="mt-1 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[#22C55E]/10 text-[#22C55E]">
+            <div className="rounded-3xl bg-white p-8 shadow-xl max-[239px]:p-3">
+              <div className="flex items-start gap-4 max-[239px]:gap-2">
+                <div className="mt-1 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#22C55E]/10 text-[#22C55E] max-[239px]:h-8 max-[239px]:w-8">
                   <i className="fa-solid fa-location-dot text-xl" aria-hidden="true" />
                 </div>
                 <div>
@@ -70,9 +70,9 @@ const Contact = () => {
                 </div>
               </div>
             </div>
-            <div className="rounded-3xl bg-white p-8 shadow-xl">
-              <div className="flex items-start gap-4">
-                <div className="mt-1 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[#22C55E]/10 text-[#22C55E]">
+            <div className="rounded-3xl bg-white p-8 shadow-xl max-[239px]:p-3">
+              <div className="flex items-start gap-4 max-[239px]:gap-2">
+                <div className="mt-1 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#22C55E]/10 text-[#22C55E] max-[239px]:h-8 max-[239px]:w-8">
                   <i className="fa-solid fa-envelope text-xl" aria-hidden="true" />
                 </div>
                 <div>
@@ -81,9 +81,9 @@ const Contact = () => {
                 </div>
               </div>
             </div>
-            <div className="rounded-3xl bg-white p-8 shadow-xl">
-              <div className="flex items-start gap-4">
-                <div className="mt-1 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[#22C55E]/10 text-[#22C55E]">
+            <div className="rounded-3xl bg-white p-8 shadow-xl max-[239px]:p-3">
+              <div className="flex items-start gap-4 max-[239px]:gap-2">
+                <div className="mt-1 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#22C55E]/10 text-[#22C55E] max-[239px]:h-8 max-[239px]:w-8">
                   <i className="fa-solid fa-phone text-xl" aria-hidden="true" />
                 </div>
                 <div>
@@ -95,7 +95,7 @@ const Contact = () => {
             </div>
           </div>
 
-          <div className="rounded-3xl bg-white p-10 shadow-xl">
+          <div className="rounded-3xl bg-white p-10 shadow-xl max-[239px]:p-3">
             <form className="space-y-6" onSubmit={handleSubmit}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>

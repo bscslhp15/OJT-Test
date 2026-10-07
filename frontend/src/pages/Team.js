@@ -12,7 +12,7 @@ const Team = () => {
     <>
       <PageHeader title="Team" />
 
-      <section className="bg-slate-50 py-20">
+      <section className="bg-slate-50 py-20 max-[239px]:py-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-slate-900 uppercase">OUR TEAM</h2>
@@ -22,9 +22,9 @@ const Team = () => {
           <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {teamMembers.map((member) => (
               <div key={member.name} className="overflow-hidden rounded-3xl bg-white shadow-xl">
-                <img src={member.image} alt={member.name} className="h-72 w-full object-cover" />
-                <div className="p-6 text-center">
-                  <h4 className="text-lg font-semibold text-slate-900">{member.name}</h4>
+                <img src={member.image} alt={member.name} className="h-72 w-full object-cover max-[239px]:h-48" />
+                <div className="p-6 text-center max-[239px]:p-3">
+                  <h4 className="text-lg font-semibold text-slate-900 max-[239px]:text-base">{member.name}</h4>
                   <p className="mt-2 text-sm text-slate-500">{member.role}</p>
                 </div>
               </div>
